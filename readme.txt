@@ -14,9 +14,8 @@ Concatenates scripts, minifies and optimizes them using Google's Closure Compile
 for the benefit of the community. <b>No support is available. Please post any questions to the <a href="http://wordpress.org/tags/optimize-scripts?forum_id=10">support forum</a>.</b></em>
 
 Concatenates scripts and then minifies and optimizes them using Google's Closure
-Compiler (but not if <code>define('SCRIPT_DEBUG', true)</code> or
-<code>define('CONCATENATE_SCRIPTS', false)</code>). For non-concatenable
-scripts, removes default WordPress 'ver' query param so that Web-wide
+Compiler (but not if `define('SCRIPT_DEBUG', true)` or `define('CONCATENATE_SCRIPTS', false)`). For non-concatenable
+scripts, removes default WordPress '`ver`' query param so that Web-wide
 cacheability isn't broken for scripts hosted on ajax.googleapis.com, for
 example. No admin page yet provided.
 
@@ -26,7 +25,7 @@ example. No admin page yet provided.
  1. Caches the concatenated/minified code and rebuilds it only when one of its source scripts expires or changes.
  1. Filename for concatenated/minified script is the md5 of all the handles concatenated together (thus if an additional handle is provided, a new concatenated script is generated).
  1. Provides a filter to limit which scripts get concatenated (i.e. jQuery on ajax.googleapis.com should be left alone); by default, all scripts on local host are concatenated, and remote scripts are left alone.
- 1. Removes the default 'ver' query parameter which WordPress adds to every script src if no version argument is supplied on wp_enqueue/register_script: this is important for Web-wide caching of scripts loaded from ajax.googleapis.com, for example. When registering new scripts, pass the filemtime in as the version so that whenever a file changes, the concatenated script will be regenerated. 
+ 1. Removes the default '`ver`' query parameter which WordPress adds to every script src if no version argument is supplied on `wp_enqueue/register_script`: this is important for Web-wide caching of scripts loaded from ajax.googleapis.com, for example. When registering new scripts, pass the filemtime in as the version so that whenever a file changes, the concatenated script will be regenerated. 
 
 For example, consider the following code:
 
