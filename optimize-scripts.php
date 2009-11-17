@@ -67,6 +67,10 @@ function optimizescripts_activate(){
 		'disabled_reason' => '',
 		'minimum_expires_time' => 3600*24*4, //6 days
 		
+		//When an error happens during a rebuild, a concatenated script is disabled
+		//  until time + this value.
+		'rebuild_wait_period' => 3600, //temp_disabled_duration
+		
 		//Google Closure Compiler option
 		'compilation_level' => 'SIMPLE_OPTIMIZATIONS',
 		
@@ -90,10 +94,6 @@ function optimizescripts_activate(){
 		'concatenated' => array(
 			//see optimizescripts_rebuild_scripts() for contents
 		),
-		
-		//When an error happens during a rebuild, a concatenated script is disabled
-		//  until time + this value.
-		'rebuild_wait_period' => 3600,
 	));
 	
 	$settings = get_option('optimizescripts_settings');
@@ -300,6 +300,8 @@ function optimizescripts_compile($oldHandles){
 				&&
 				//Make sure we don't accidentally do anything recursively here
 				(strpos($handle, OPTIMIZESCRIPTS_TEXT_DOMAIN) !== 0)
+				&&
+				!empty($settings['cache'][$handle]['disabled'])
 			);
 			
 			//Add the script's src to the list of srcs pending for concatenation/compilation
@@ -476,7 +478,7 @@ function optimizescripts_compile($oldHandles){
 			if(!$isConcatenable) //|| $pendingMustRebuild
 				$newHandles[] = $handle;
 		}
-		file_put_contents(ABSPATH . '/~optimizescripts.txt', print_r($settings, true)); //@todo
+		//file_put_contents(ABSPATH . '/~optimizescripts.txt', print_r($settings, true)); //@todo
 		return $newHandles;
 	}
 	catch(Exception $err){
@@ -569,7 +571,8 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							'expires' => 0,
 							'etag' => null,
 							'request_count' => 0,
-							'src' => $srcUrl
+							'src' => $srcUrl,
+							'disabled' => false
 							//'last_request_reason' => ''
 						);
 					}

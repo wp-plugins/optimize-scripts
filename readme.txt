@@ -2,7 +2,7 @@
 Contributors: westonruter
 Tags: javascript, scripts, caching, minification, compression, obfuscation, concatenation, expires, performance, yslow, page speed, closure compiler
 Tested up to: 2.8.6
-Requires at least: 2.7
+Requires at least: 2.8
 Stable tag: trunk
 
 Concatenates scripts, minifies and optimizes them using Google's Closure Compiler. For other scripts (on CDNs), removes default 'ver' query param.
