@@ -41,6 +41,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	update_option('optimizescripts_settings', $settings);
 //}
 
+// Load up the localization file if we're using WordPress in a different language
+// Place it in the "localization" folder and name it "optimize-scripts-[value in wp-config].mo"
+define('OPTIMIZESCRIPTS_TEXT_DOMAIN', 'optimze-scripts');
+load_plugin_textdomain(OPTIMIZESCRIPTS_TEXT_DOMAIN, plugin_dir_path(__FILE__) . '/i18n');
+
 
 /**
  * Do the initial setup of the plugin, including the creation of the directory
@@ -94,19 +99,19 @@ function optimizescripts_activate(){
 	$settings = get_option('optimizescripts_settings');
 	try {
 		if(version_compare(PHP_VERSION, '5.0.0', '<'))
-			throw new Exception(sprintf(__("This plugin requires PHP5, but you have %s", 'optimizescripts'), PHP_VERSION));
+			throw new Exception(sprintf(__("This plugin requires PHP5, but you have %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), PHP_VERSION));
 		
 		$dir = trailingslashit(WP_CONTENT_DIR) . basename(trim($settings['dirname'], '/'));
 		if(!file_exists($dir) && !@mkdir($dir, 0777))
-			throw new Exception(sprintf(__("Unable to create directory (%s) for optimized scripts. Create it and make it writable.", 'optimizescripts'), $dir));
+			throw new Exception(sprintf(__("Unable to create directory (%s) for optimized scripts. Create it and make it writable.", OPTIMIZESCRIPTS_TEXT_DOMAIN), $dir));
 		if(!is_writable($dir))
-			throw new Exception(sprintf(__("Directory where scripts will be stored is not writable (%s)", 'optimizescripts'), $dir));
+			throw new Exception(sprintf(__("Directory where scripts will be stored is not writable (%s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), $dir));
 		
 		$cacheDir = trailingslashit($dir) . 'cache';
 		if(!file_exists($cacheDir) && !@mkdir($cacheDir, 0777))
-			throw new Exception(sprintf(__("Unable to create script cache directory (%s). Create it and make it writable.", 'optimizescripts'), $cacheDir));
+			throw new Exception(sprintf(__("Unable to create script cache directory (%s). Create it and make it writable.", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheDir));
 		if(!is_writable($cacheDir))
-			throw new Exception(sprintf(__("Directory where cached scripts will be stored is not writable (%s).", 'optimizescripts'), $cacheDir));
+			throw new Exception(sprintf(__("Directory where cached scripts will be stored is not writable (%s).", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheDir));
 	}
 	catch(Exception $e){
 		$settings['disabled'] = true;
@@ -294,7 +299,7 @@ function optimizescripts_compile($oldHandles){
 					$parsedSrc))
 				&&
 				//Make sure we don't accidentally do anything recursively here
-				(strpos($handle, 'optimizescripts') !== 0)
+				(strpos($handle, OPTIMIZESCRIPTS_TEXT_DOMAIN) !== 0)
 			);
 			
 			//Add the script's src to the list of srcs pending for concatenation/compilation
@@ -615,7 +620,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							$result['body'] = @file_get_contents($cacheScriptFile);
 							if(!$result['body'] && @filesize($cacheScriptFile) > 0){
 								$error = error_get_last();
-								throw new Exception($error ? $error['message'] : sprintf(__("Unable to read from: %s", 'optimizescripts'), $cacheScriptFile));
+								throw new Exception($error ? $error['message'] : sprintf(__("Unable to read from: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheScriptFile));
 							}
 						}
 						//If not successful
@@ -627,7 +632,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 						$cacheScriptFile = ($cacheScriptFile);
 						if(!@file_put_contents($cacheScriptFile, $result['body'])){
 							$error = error_get_last();
-							throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to cache: %s", 'optimizescripts'), $cacheScriptFile));
+							throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to cache: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheScriptFile));
 						}
 						
 						$scriptBuffer[] = $result['body'];
@@ -657,7 +662,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							throw new Exception(str_replace(
 								array('%url', '%handle', '%minimum_expires_time'),
 								array($srcUrl, $handle, $settings['minimum_expires_time']),
-								__("The script %handle (%url) does not have a minimum expires time (%minimum_expires_time seconds)", 'optimizescripts')
+								__("The script %handle (%url) does not have a minimum expires time (%minimum_expires_time seconds)", OPTIMIZESCRIPTS_TEXT_DOMAIN)
 							));
 						}
 					}
@@ -667,7 +672,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 						$contents = @file_get_contents($cacheScriptFile);
 						if(!$contents && filesize($cacheScriptFile) > 0){
 							$error = error_get_last();
-							throw new Exception($error ? $error['message'] : sprintf(__("Unable to read from: %s", 'optimizescripts'), $cacheScriptFile));
+							throw new Exception($error ? $error['message'] : sprintf(__("Unable to read from: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheScriptFile));
 						}
 						$scriptBuffer[] = $contents;
 					}
@@ -687,9 +692,9 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 				//Prepend the manufest to the concatenated script
 				if(!empty($settings['include_manifest'])){
 					$output .= "/*\n";
-					$output .= __("This file contains the following URLs concatenated together.", 'optimizescripts') . "\n";
+					$output .= __("This file contains the following URLs concatenated together.", OPTIMIZESCRIPTS_TEXT_DOMAIN) . "\n";
 					if(!empty($settings['compilation_level']))
-						$output .= sprintf(__("They were also optimized by Google's Closure Compiler with compilation_level %s.", 'optimizescripts'), $settings['compilation_level']) . "\n";
+						$output .= sprintf(__("They were also optimized by Google's Closure Compiler with compilation_level %s.", OPTIMIZESCRIPTS_TEXT_DOMAIN), $settings['compilation_level']) . "\n";
 					//$concatenated .= join("\n", array_values($scriptsToConcatenate));
 					$i = 0;
 					foreach(array_values($scriptsToConcatenate) as $url){
@@ -773,7 +778,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 				//Write out the concatenated+compiled script
 				if(!@file_put_contents("$baseDir/$handleshash.js", $output)){
 					$error = error_get_last();
-					throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to file %s", 'optimizescripts'), "$baseDir/$handleshash.js"));
+					throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to file %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), "$baseDir/$handleshash.js"));
 				}
 			}
 			//If an exception is thrown, then we should update the settings to
@@ -839,3 +844,5 @@ function optimizescripts_print_debug_log($msg){
 	
 	@file_put_contents("$baseDir/debugLog.txt", "$entry\n", FILE_APPEND);
 }
+
+include(plugin_dir_path(__FILE__) . 'admin.php');
