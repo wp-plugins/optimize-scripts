@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 /*
 @todo: Handle inline scripts?
+@todo: Keep track of the page that the script as built on
 */
 
  //* define('SCRIPT_DEBUG', true); loads the development (non-minified) versions of all scripts and disables compression and concatenation
@@ -52,6 +53,9 @@ load_plugin_textdomain(OPTIMIZESCRIPTS_TEXT_DOMAIN, plugin_dir_path(__FILE__) . 
  * where the concatenated JS files will be stored
  */
 function optimizescripts_activate(){
+	if(version_compare(PHP_VERSION, '5.0.0', '<'))
+		throw new Exception(sprintf(__("This plugin requires PHP5, but you have %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), PHP_VERSION));
+	
 	/**
 	 * Settings for Plugin
 	 */
@@ -91,6 +95,7 @@ function optimizescripts_activate(){
 		),
 		
 		//List of all of the scripts that have been concatenated
+		//@todo: use 'optimized'
 		'concatenated' => array(
 			//see optimizescripts_rebuild_scripts() for contents
 		),
@@ -98,9 +103,6 @@ function optimizescripts_activate(){
 	
 	$settings = get_option('optimizescripts_settings');
 	try {
-		if(version_compare(PHP_VERSION, '5.0.0', '<'))
-			throw new Exception(sprintf(__("This plugin requires PHP5, but you have %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), PHP_VERSION));
-		
 		$dir = trailingslashit(WP_CONTENT_DIR) . basename(trim($settings['dirname'], '/'));
 		if(!file_exists($dir) && !@mkdir($dir, 0777))
 			throw new Exception(sprintf(__("Unable to create directory (%s) for optimized scripts. Create it and make it writable.", OPTIMIZESCRIPTS_TEXT_DOMAIN), $dir));
@@ -546,7 +548,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 					'mtime' => 0,
 					'build_count' => 0,
 					'last_build_reason' => '',
-					'status' => 'pending',
+					//'status' => 'pending',
 					'disabled_until' => 0,
 					'disabled' => false
 				);
