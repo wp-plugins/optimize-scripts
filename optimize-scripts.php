@@ -35,7 +35,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //delete_option('optimizescripts_settings');
 //$settings = get_option('optimizescripts_settings');
 //if($settings){
-//	foreach($settings['concatenated'] as &$i){
+//	foreach($settings['optimized'] as &$i){
 //		$i['disabled'] = false;
 //		$i['disabled_reason'] = '';
 //	}
@@ -89,14 +89,15 @@ function optimizescripts_activate(){
 		// are using WP Super Cache or another caching plugin.
 		'use_cron' => true,
 		
+		'debug_log' => false,
+		
 		//Cached scripts
 		'cache' => array(
 			//see optimizescripts_rebuild_scripts() for contents
 		),
 		
 		//List of all of the scripts that have been concatenated
-		//@todo: use 'optimized'
-		'concatenated' => array(
+		'optimized' => array(
 			//see optimizescripts_rebuild_scripts() for contents
 		),
 	));
@@ -139,7 +140,7 @@ function optimizescripts_init(){
 		return;
 	
 	//The plugin has been disabled, perhaps because of an error
-	if(@$settings['disabled'])
+	if(@$settings['disabled'] || @strpos($_SERVER['HTTP_X_WP_OPTIMIZE_SCRIPTS'], 'disable') !== false)
 		return;
 
 	//Abort if WP is explicitly disabling script concatenation
@@ -286,11 +287,12 @@ function optimizescripts_compile($oldHandles){
 			$src = apply_filters('script_loader_src', $wp_scripts->registered[$handle]->src, $handle); //@todo Or just optimizescripts_set_src_query_params ?
 			$parsedSrc = optimizescripts_parse_url($src);
 			
+			$isCacheEmpty = empty($settings['cache'][$handle]);
 			$isConcatenable = (
 				//We must not allow scripts without far-future expires to be concatenated
 				// because then they will need to be fetched each time the page is
 				// loaded. (An expires of zero means it had no expires provided.)
-				(empty($settings['cache'][$handle]) || !empty($settings['cache'][$handle]['expires']))
+				($isCacheEmpty || !empty($settings['cache'][$handle]['expires']))
 				&&
 				//Furthermore, only allow scripts that are on the approved
 				// list of domains to be concatenable, or if a filter explicitly
@@ -303,7 +305,8 @@ function optimizescripts_compile($oldHandles){
 				//Make sure we don't accidentally do anything recursively here
 				(strpos($handle, OPTIMIZESCRIPTS_TEXT_DOMAIN) !== 0)
 				&&
-				!empty($settings['cache'][$handle]['disabled'])
+				//Make sure the cache will allow concatenation
+				($isCacheEmpty || empty($settings['cache'][$handle]['disabled']))
 			);
 			
 			//Add the script's src to the list of srcs pending for concatenation/compilation
@@ -367,12 +370,12 @@ function optimizescripts_compile($oldHandles){
 				$filename = $handleshash . '.js';
 				//@todo We could use $handleshash as the handle for the script
 				
-				$isDisabled = (isset($settings['concatenated'][$handleshash]) &&
+				$isDisabled = (isset($settings['optimized'][$handleshash]) &&
 					(
-						!empty($settings['concatenated'][$handleshash]['disabled_until']) &&
-						$settings['concatenated'][$handleshash]['disabled_until'] < time()
+						!empty($settings['optimized'][$handleshash]['disabled_until']) &&
+						$settings['optimized'][$handleshash]['disabled_until'] < time()
 					) || (
-						!empty($settings['concatenated'][$handleshash]['disabled'])
+						!empty($settings['optimized'][$handleshash]['disabled'])
 					)
 				);
 				
@@ -392,8 +395,8 @@ function optimizescripts_compile($oldHandles){
 					// then subsequent requests will have $pendingMustRebuild == false
 					// and will be able to use the newly written script.
 					if($pendingMustRebuild){
-						//if(isset($settings['concatenated'][$handleshash]))
-						//	$settings['concatenated'][$handleshash]['status'] = 'pending';
+						//if(isset($settings['optimized'][$handleshash]))
+						//	$settings['optimized'][$handleshash]['status'] = 'pending';
 						
 						if($isRebuildWithCron){
 							//Add the pending scripts for the shutdown function to
@@ -414,12 +417,12 @@ function optimizescripts_compile($oldHandles){
 							//Check to see if the action failed to rebuild and
 							// disabled this concatenated script
 							$settings = get_option('optimizescripts_settings');
-							$isDisabled = (isset($settings['concatenated'][$handleshash]) &&
+							$isDisabled = (isset($settings['optimized'][$handleshash]) &&
 								(
-									!empty($settings['concatenated'][$handleshash]['disabled_until']) &&
-									$settings['concatenated'][$handleshash]['disabled_until'] < time()
+									!empty($settings['optimized'][$handleshash]['disabled_until']) &&
+									$settings['optimized'][$handleshash]['disabled_until'] < time()
 								) || (
-									!empty($settings['concatenated'][$handleshash]['disabled'])
+									!empty($settings['optimized'][$handleshash]['disabled'])
 								)
 							);
 						}
@@ -490,8 +493,8 @@ function optimizescripts_compile($oldHandles){
 		#print "-->\n";
 		$settings['disabled'] = true;
 		$settings['disabled_reason'] = $err->getMessage();
+		update_option('optimizescripts_settings', $settings);
 	}
-	file_put_contents(ABSPATH . '/~optimizescripts.txt', print_r($settings, true)); //@todo
 	return $oldHandles;
 }
 
@@ -530,7 +533,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 		// required (i.e. not cached or expired), and then rebuild the
 		// concatenated script.
 		foreach($scriptGroups as $handleshash => $scriptsToConcatenate){
-			if(!isset($settings['concatenated'][$handleshash])){
+			if(!isset($settings['optimized'][$handleshash])){
 				/**
 				 *  - created: When the script was first built.
 				 *  - modified: Last time that this script was rebuilt (filemtime)
@@ -543,7 +546,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 				 *                    be set to time() + rebuild_wait_period
 				 *  - disabled: Force this to be disabled forever.
 				 */
-				$settings['concatenated'][$handleshash] = array(
+				$settings['optimized'][$handleshash] = array(
 					'ctime' => time(),
 					'mtime' => 0,
 					'build_count' => 0,
@@ -554,10 +557,10 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 				);
 			}
 			else {
-				$settings['concatenated'][$handleshash]['mtime'] = time();
+				$settings['optimized'][$handleshash]['mtime'] = time();
 			}
-			$settings['concatenated'][$handleshash]['build_count']++;
-			$settings['concatenated'][$handleshash]['manifest_handles'] = array_keys($scriptsToConcatenate);
+			$settings['optimized'][$handleshash]['build_count']++;
+			$settings['optimized'][$handleshash]['manifest_handles'] = array_keys($scriptsToConcatenate);
 			
 			try {
 				$scriptBuffer = array();
@@ -569,7 +572,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 					if(!isset($settings['cache'][$handle])){
 						$settings['cache'][$handle] = array(
 							'ctime' => time(),
-							'mtime' => 0,
+							'mtime' => time(),
 							'expires' => 0,
 							'etag' => null,
 							'request_count' => 0,
@@ -597,6 +600,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 						$settings['cache'][$handle]['request_count']++;
 						$requestHeaders = array(
 							'Referer' => "http://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]",
+							'X-WP-Optimize-Scripts' => 'disable'
 							//'Cache-Control' => "max-age=0"
 						);
 						if(file_exists($cacheScriptFile)){
@@ -630,7 +634,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 						}
 						//If not successful
 						else if($result['response']['code'] != 200) {
-							throw new Exception("HTTP " . $result['response']['code']);
+							throw new Exception(sprintf(__("HTTP %d for script handle %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $result['response']['code'], $handle));
 						}
 						
 						//Save the file to the
@@ -785,12 +789,13 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 					$error = error_get_last();
 					throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to file %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), "$baseDir/$handleshash.js"));
 				}
+				$settings['optimized'][$handleshash]['mtime'] = time();
 			}
 			//If an exception is thrown, then we should update the settings to
 			//  wait for this set of scripts to be re-fetched
 			catch(Exception $e){
-				$settings['concatenated'][$handleshash]['disabled'] = true;
-				$settings['concatenated'][$handleshash]['disabled_reason'] = $e->getMessage();
+				$settings['optimized'][$handleshash]['disabled'] = true;
+				$settings['optimized'][$handleshash]['disabled_reason'] = $e->getMessage();
 				
 				optimizescripts_print_debug_log(
 					"Exception!",
@@ -817,9 +822,9 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 		$settings['disabled'] = true;
 		$settings['disabled_reason'] = $e->getMessage();
 		//update_option('optimizescripts_settings', $settings);
-		$temp_my_exception = $e->getMessage(); //temp
+		//$temp_my_exception = $e->getMessage(); //temp
 	}
-	file_put_contents(ABSPATH . '/~optimizescripts.txt', print_r($settings, true)); //@todo
+	//file_put_contents(ABSPATH . '/~optimizescripts.txt', print_r($settings, true)); //@todo
 	update_option('optimizescripts_settings', $settings);
 	//if(isset($temp_my_exception))
 	//	file_put_contents(ABSPATH . '/~optimizescripts.txt', print_r($settings, true), FILE_APPEND);
