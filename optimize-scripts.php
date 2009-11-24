@@ -718,7 +718,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 				
 				//Now compile the scripts using Google Closure Compiler
 				if(!empty($settings['compilation_level'])){
-					try {
+					//try {
 						$result = $useragent->post(
 							'http://closure-compiler.appspot.com/compile',
 							array(
@@ -742,9 +742,9 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 						
 						//Check to see if error happens
 						if(is_wp_error($result))
-							throw new Exception("$handleshash: " . join("\n", $result->get_error_messages()));
+							throw new Exception(join("\n", $result->get_error_messages()));
 						if($result['response']['code'] != 200)
-							throw new Exception("$handleshash: HTTP " . $result['response']['code']);
+							throw new Exception(sprintf(__("Google Closure Compuler returned HTTP %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $result['response']['code']));
 						
 						//Save the raw compilationResult
 						@file_put_contents("$baseDir/$handleshash.compilationResult.xml", $result['body']);
@@ -752,13 +752,18 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 						$doc = new DOMDocument();
 						if(!$doc->loadXML($result['body'])){
 							$error = error_get_last();
-							throw new Exception($error ? $error['message'] : 'XML parse error from Google Closure Compiler');
+							throw new Exception($error ? $error['message'] : __('XML parse error from Google Closure Compiler', OPTIMIZESCRIPTS_TEXT_DOMAIN));
+						}
+						
+						//JS errors
+						if($doc->getElementsByTagName('error')->item(0)){
+							throw new Exception(__("Google Closure Compiler found errors (please see compilation results)", OPTIMIZESCRIPTS_TEXT_DOMAIN));
 						}
 						
 						//Get the compiled code, otherwise show error
 						$compiledCodeEl = $doc->getElementsByTagName('compiledCode')->item(0);
 						if(!$compiledCodeEl)
-							throw new Exception('XML validation error from Google Closure Compiler');
+							throw new Exception(__('XML validation error from Google Closure Compiler (missing compiledCode element)', OPTIMIZESCRIPTS_TEXT_DOMAIN));
 						
 						//Get the minified code
 						$compiledCode = $compiledCodeEl->textContent;
@@ -771,15 +776,15 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							'Google Code Compiled',
 							join(' - ', array_keys($scriptsToConcatenate))
 						);
-					}
-					catch(Exception $e){
-						optimizescripts_print_debug_log(
-							'Closure Exception!',
-							$e->getMessage(),
-							strlen($optimized),
-							join('&', array_keys($scriptsToConcatenate))
-						);
-					}
+					//}
+					//catch(Exception $e){
+					//	optimizescripts_print_debug_log(
+					//		'Closure Exception!',
+					//		$e->getMessage(),
+					//		strlen($optimized),
+					//		join('&', array_keys($scriptsToConcatenate))
+					//	);
+					//}
 				}
 				
 				$output .= $optimized;
