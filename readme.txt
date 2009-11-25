@@ -1,4 +1,4 @@
-=== Forms ===
+=== Optimize Scripts ===
 Contributors: westonruter
 Tags: javascript, scripts, caching, minification, compression, obfuscation, concatenation, expires, performance, yslow, page speed, closure compiler
 Tested up to: 2.8.6
