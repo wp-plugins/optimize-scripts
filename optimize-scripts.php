@@ -3,7 +3,7 @@
 Plugin Name: Optimize Scripts
 Plugin URI: http://wordpress.org/extend/plugins/optimize-scripts/
 Description: Concatenates scripts and then minifies and optimizes them using Google's Closure Compiler (but not if <code>define('SCRIPT_DEBUG', true)</code> or <code>define('CONCATENATE_SCRIPTS', false)</code>). For non-concatenable scripts, removes default WordPress 'ver' query param so that Web-wide cacheability isn't broken for scripts hosted on ajax.googleapis.com, for example. No admin page yet provided.
-Version: 0.5 (alpha)
+Version: 0.5 (development)
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
 Copyright: 2009, Weston Ruter, Shepherd Interactive <http://shepherd-interactive.com/>. GPL license.
@@ -577,122 +577,129 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							'etag' => null,
 							'request_count' => 0,
 							'src' => $srcUrl,
-							'disabled' => false
+							'disabled' => false,
+							'disabled_reason' => ''
 							//'last_request_reason' => ''
 						);
 					}
-					
-					$downloadSource = '?';
-					$cacheScriptFile = "$cacheDir/$handle.js";
-					
-					//Check expires header and if we have the latest info
-					$mustRefetchFile = (
-						//true || //@debug
-						empty($settings['cache'][$handle]['expires']) ||
-						$settings['cache'][$handle]['expires'] < time() ||
-						$settings['cache'][$handle]['src'] != $srcUrl ||
-						!file_exists($cacheScriptFile)
-					);
-					
-					//Get the file over HTTP
-					if($mustRefetchFile){
-						$settings['cache'][$handle]['src'] = $srcUrl;
-						$settings['cache'][$handle]['request_count']++;
-						$requestHeaders = array(
-							'Referer' => "http://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]",
-							'X-WP-Optimize-Scripts' => 'disable'
-							//'Cache-Control' => "max-age=0"
+					try {
+						$downloadSource = '?';
+						$cacheScriptFile = "$cacheDir/$handle.js";
+						
+						//Check expires header and if we have the latest info
+						$mustRefetchFile = (
+							//true || //@debug
+							empty($settings['cache'][$handle]['expires']) ||
+							$settings['cache'][$handle]['expires'] < time() ||
+							$settings['cache'][$handle]['src'] != $srcUrl ||
+							!file_exists($cacheScriptFile)
 						);
-						if(file_exists($cacheScriptFile)){
-							if(!empty($settings['cache'][$handle]['etag']))
-								$requestHeaders['If-None-Match'] = $settings['cache'][$handle]['etag'];
-							if(!empty($settings['cache'][$handle]['mtime']))
-								$requestHeaders['If-Modified-Since'] = str_replace('+0000', 'GMT', gmdate('r', $settings['cache'][$handle]['mtime']));
+						
+						//Get the file over HTTP
+						if($mustRefetchFile){
+							$settings['cache'][$handle]['src'] = $srcUrl;
+							$settings['cache'][$handle]['request_count']++;
+							$requestHeaders = array(
+								'Referer' => "http://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]",
+								'X-WP-Optimize-Scripts' => 'disable'
+								//'Cache-Control' => "max-age=0"
+							);
+							if(file_exists($cacheScriptFile)){
+								if(!empty($settings['cache'][$handle]['etag']))
+									$requestHeaders['If-None-Match'] = $settings['cache'][$handle]['etag'];
+								if(!empty($settings['cache'][$handle]['mtime']))
+									$requestHeaders['If-Modified-Since'] = str_replace('+0000', 'GMT', gmdate('r', $settings['cache'][$handle]['mtime']));
+							}
+							
+							//Make the request
+							$result = @$useragent->request($srcUrl, array(
+								'headers' => $requestHeaders,
+								//'httpversion' => '1.1'
+							));
+							$result['request_headers'] = $requestHeaders;
+							
+							$downloadSource = 'HTTP';
+							
+							//Check to see if the HTTP request failed
+							if(is_wp_error($result))
+								throw new Exception(join("\n", $result->get_error_messages()));
+							
+							//Not Modified
+							else if($result['response']['code'] == 304){
+								$downloadSource = "HTTP+Cache";
+								$result['body'] = @file_get_contents($cacheScriptFile);
+								if(!$result['body'] && @filesize($cacheScriptFile) > 0){
+									$error = error_get_last();
+									throw new Exception($error ? $error['message'] : sprintf(__("Unable to read from: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheScriptFile));
+								}
+							}
+							//If not successful
+							else if($result['response']['code'] != 200) {
+								throw new Exception(sprintf(__("HTTP %d", OPTIMIZESCRIPTS_TEXT_DOMAIN), $result['response']['code'], $handle));
+							}
+							
+							//Save the file to the
+							$cacheScriptFile = ($cacheScriptFile);
+							if(!@file_put_contents($cacheScriptFile, $result['body'])){
+								$error = error_get_last();
+								throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to cache: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheScriptFile));
+							}
+							
+							$scriptBuffer[] = $result['body'];
+							
+							//Get the last modified time
+							$mtime = !empty($result['headers']['last-modified']) ?
+								strtotime($result['headers']['last-modified']) :
+								time();
+							$settings['cache'][$handle]['mtime'] = $mtime;
+							
+							//Get the etag
+							$settings['cache'][$handle]['etag'] = isset($result['headers']['etag']) ? $result['headers']['etag'] : null;
+							
+							//Get the expires time
+							$expires = 0;
+							if(!empty($result['headers']['expires'])){
+								$expires = strtotime($result['headers']['expires']);
+							}
+							//else if(!empty($result['headers']['cache-control']) &&
+							//		preg_match('/max-age=(\d+)/', $result['headers']['cache-control'], $maxAgeMatch))
+							//{}
+							$expires = apply_filters('optimizescripts_expires', $expires, $srcUrl, $scriptsToConcatenate);
+							//$expires = time() + 3600;
+							$settings['cache'][$handle]['expires'] = $expires;
+							
+							if($expires-time() < $settings['minimum_expires_time']){
+								throw new Exception(str_replace(
+									array('%url', '%handle', '%minimum_expires_time'),
+									array($srcUrl, $handle, $settings['minimum_expires_time']),
+									__("The script %handle (%url) does not have a minimum expires time (%minimum_expires_time seconds)", OPTIMIZESCRIPTS_TEXT_DOMAIN)
+								));
+							}
 						}
-						
-						//Make the request
-						$result = @$useragent->request($srcUrl, array(
-							'headers' => $requestHeaders,
-							//'httpversion' => '1.1'
-						));
-						$result['request_headers'] = $requestHeaders;
-						
-						$downloadSource = 'HTTP';
-						
-						//Check to see if the HTTP request failed
-						if(is_wp_error($result))
-							throw new Exception(join("\n", $result->get_error_messages()));
-						
-						//Not Modified
-						else if($result['response']['code'] == 304){
-							$downloadSource = "HTTP+Cache";
-							$result['body'] = @file_get_contents($cacheScriptFile);
-							if(!$result['body'] && @filesize($cacheScriptFile) > 0){
+						//Get the file from the cache
+						else {
+							$downloadSource = "Cache";
+							$contents = @file_get_contents($cacheScriptFile);
+							if(!$contents && filesize($cacheScriptFile) > 0){
 								$error = error_get_last();
 								throw new Exception($error ? $error['message'] : sprintf(__("Unable to read from: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheScriptFile));
 							}
-						}
-						//If not successful
-						else if($result['response']['code'] != 200) {
-							throw new Exception(sprintf(__("HTTP %d for script handle %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $result['response']['code'], $handle));
+							$scriptBuffer[] = $contents;
 						}
 						
-						//Save the file to the
-						$cacheScriptFile = ($cacheScriptFile);
-						if(!@file_put_contents($cacheScriptFile, $result['body'])){
-							$error = error_get_last();
-							throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to cache: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheScriptFile));
-						}
-						
-						$scriptBuffer[] = $result['body'];
-						
-						//Get the last modified time
-						$mtime = !empty($result['headers']['last-modified']) ?
-							strtotime($result['headers']['last-modified']) :
-							time();
-						$settings['cache'][$handle]['mtime'] = $mtime;
-						
-						//Get the etag
-						$settings['cache'][$handle]['etag'] = isset($result['headers']['etag']) ? $result['headers']['etag'] : null;
-						
-						//Get the expires time
-						$expires = 0;
-						if(!empty($result['headers']['expires'])){
-							$expires = strtotime($result['headers']['expires']);
-						}
-						//else if(!empty($result['headers']['cache-control']) &&
-						//		preg_match('/max-age=(\d+)/', $result['headers']['cache-control'], $maxAgeMatch))
-						//{}
-						$expires = apply_filters('optimizescripts_expires', $expires, $srcUrl, $scriptsToConcatenate);
-						//$expires = time() + 3600;
-						$settings['cache'][$handle]['expires'] = $expires;
-						
-						if($expires-time() < $settings['minimum_expires_time']){
-							throw new Exception(str_replace(
-								array('%url', '%handle', '%minimum_expires_time'),
-								array($srcUrl, $handle, $settings['minimum_expires_time']),
-								__("The script %handle (%url) does not have a minimum expires time (%minimum_expires_time seconds)", OPTIMIZESCRIPTS_TEXT_DOMAIN)
-							));
-						}
+						//TEMP @todo
+						optimizescripts_print_debug_log(
+							$downloadSource,
+							$handleshash,
+							$handle,
+							$srcUrl
+						);
 					}
-					//Get the file from the cache
-					else {
-						$downloadSource = "Cache";
-						$contents = @file_get_contents($cacheScriptFile);
-						if(!$contents && filesize($cacheScriptFile) > 0){
-							$error = error_get_last();
-							throw new Exception($error ? $error['message'] : sprintf(__("Unable to read from: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheScriptFile));
-						}
-						$scriptBuffer[] = $contents;
+					catch(Exception $e){
+						$settings['cache'][$handle]['disabled'] = true;
+						$settings['cache'][$handle]['disabled_reason'] = $e->getMessage();
+						throw $e;
 					}
-					
-					//TEMP @todo
-					optimizescripts_print_debug_log(
-						$downloadSource,
-						$handleshash,
-						$handle,
-						$srcUrl
-					);
 				}
 				
 				//Now write out the concatenated script!

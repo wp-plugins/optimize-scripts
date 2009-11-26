@@ -67,6 +67,7 @@ function optimizescripts_validate_options($input){
 	//Bulk actions on optimized scripts
 	if(!empty($input['optimized_handlehash'])){
 		switch(@$input['optimized_action']){
+			
 			//Delete an optimized script, both from DB and from file system
 			case 'delete':
 				foreach((array)$input['optimized_handlehash'] as $hashhandle){
@@ -76,6 +77,7 @@ function optimizescripts_validate_options($input){
 					}
 				}
 				break;
+			
 			//Disable an optimized script
 			case 'disable':
 				foreach((array)$input['optimized_handlehash'] as $hashhandle){
@@ -86,6 +88,7 @@ function optimizescripts_validate_options($input){
 					}
 				}
 				break;
+			
 			//Enable an optimized script
 			case 'enable':
 				foreach((array)$input['optimized_handlehash'] as $hashhandle){
@@ -284,7 +287,7 @@ ECTEXT
 										echo esc_attr(str_replace(
 											array('%build_count'),
 											array($optimized['build_count']),
-											"Rebuilt %build_count time(s) since initial creation."));
+											__("Rebuilt %build_count time(s) since initial creation.", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
 										if($optimized['last_build_reason']){
 											echo ' ' . esc_attr(sprintf(__("Reason for last rebuild: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $optimized['last_build_reason']));
 										}
@@ -321,7 +324,7 @@ ECTEXT
 								else if($lifeRemaining < 60*60)
 									printf(__("%s minute(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60, 1));
 								else if($lifeRemaining < 60*60*24)
-									printf(__("%s hour(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($$lifeRemaining/60/60, 1));
+									printf(__("%s hour(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60, 1));
 								else
 									printf(__("%s day(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60/24, 1));
 								?>
@@ -358,7 +361,7 @@ ECTEXT
 				<option value='delete'><?php _e('Delete (force rebuild)', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
 			</select>
 			<input class='button-secondary action' type="submit" value="<?php esc_attr_e('Apply') ?>" />
-			<pre><?php echo esc_attr(print_r($settings['optimized'], true)); ?></pre>
+			<pre><?php echo esc_attr(print_r($settings['optimized'], true)); ?></pre><!-- debug -->
 			<?php else: ?>
 				<p><em>
 <?php _e(<<<ECTEXT
@@ -378,6 +381,148 @@ ECTEXT
 			
 			<h3><?php _e('Registered Script Cache', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></h3>
 			<?php if(!empty($settings['cache'])): ?>
+				<table id="cached_scripts_table" class="widefat page " cellspacing="0">
+					<thead>
+						<tr>
+							<th class="manage-column column-cb check-column" scope="col"><input type="checkbox" /></th>
+							<th class="manage-column" scope="col"><?php _e('Status', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></th>
+							<th class="manage-column" scope="col"><?php _e('Created', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></th>
+							<th class="manage-column" scope="col"><?php _e('Modified', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></th>
+							<th class="manage-column" scope="col"><?php _e('Expires', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php
+					$alt = false;
+					foreach($settings['cache'] as $handle => $cached): ?>
+						<tr class="<?php if($alt) echo 'alternate '; $alt=!$alt; if($cached['disabled']) echo ' disabled'; ?>">
+							<th class='check-column'><input type="checkbox" scope="row" name="optimizescripts_settings[cached_handle][]" value="<?php echo esc_attr($handle) ?>" /></th>
+							<td>
+								<p><strong><a title="<?php esc_attr_e("View optimized script (opens in new window)") ?>" href="<?php echo esc_attr("$baseUrl/cache/$handle.js") ?>" target="_blank"><?php echo esc_attr($handle); ?></a></strong></p>
+								
+								<!-- status + (disabled_until) + (disabled_until) -->
+								<?php
+								//$cached['disabled'] = true;
+								//$cached['disabled_until'] = time()-3400;
+								//$cached['disabled_reason'] = "You!";
+								?>
+								<?php if($cached['disabled']): ?>
+									<div class='optimized_disabled_info'>
+									<p><strong><em><?php _e('Disabled', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></em></strong></p>
+									<?php if($cached['disabled_reason'] || $cached['disabled_until']): ?>
+										<?php
+										if($cached['disabled_until']): ?>
+											<p><?php _e('Duration:', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?>
+											<time datetime="<?php echo gmdate('c', $cached['disabled_until']) ?>"
+												  title="<?php echo esc_attr(sprintf(__('Until %s', OPTIMIZESCRIPTS_TEXT_DOMAIN), date('c', $cached['ctime']))) ?>">
+												<?php
+												$disabledRemaining = time() - $cached['disabled_until'];
+												if($disabledRemaining < 60)
+													printf(__("For %s more second(s).", OPTIMIZESCRIPTS_TEXT_DOMAIN), $disabledRemaining);
+												else if($disabledRemaining < 60*60)
+													printf(__("For %s more minute(s).", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($disabledRemaining/60, 1));
+												else if($disabledRemaining < 60*60*24)
+													printf(__("For %s more hour(s).", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($disabledRemaining/60/60, 1));
+												else
+													printf(__("For %s more day(s).", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($disabledRemaining/60/60/24, 1));
+												?>
+											</time>
+											</p>
+										<?php endif; ?>
+										<?php if($cached['disabled_reason']): ?>
+											<p><?php _e('Reason:', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?>
+											<?php print $cached['disabled_reason']; ?>
+											</p>
+										<?php endif; ?>
+									<?php endif; ?>
+									</p>
+									</div>
+								<?php else: ?>
+									<p><em><?php _e('Enabled', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em></p>
+								<?php endif; ?>
+							</td>
+							<td>
+								<time datetime="<?php echo gmdate('c', $cached['ctime']) ?>"
+									  title="<?php echo esc_attr(date('c', $cached['ctime'])) ?>">
+									<?php echo date(get_option('date_format'), $cached['ctime']) ?>
+								</time>
+							</td>
+							<td>
+								<?php if(!$cached['mtime']): ?>
+									<em>Unknown</em>
+								<?php else: ?>
+									<time datetime="<?php echo gmdate('c', $cached['mtime']) ?>" title="<?php echo date('c', $cached['mtime']) ?>">
+										<?php //echo gmdate('c', $cached['mtime'])
+										$timeModifiedAgo = time() - $cached['mtime'];
+										if($timeModifiedAgo < 60)
+											printf(__("%s second(s) ago", OPTIMIZESCRIPTS_TEXT_DOMAIN), $timeModifiedAgo);
+										elseif($timeModifiedAgo < 60*60)
+											printf(__("%s minute(s) ago", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($timeModifiedAgo/60, 1));
+										elseif($timeModifiedAgo < 60*60*24)
+											printf(__("%s hour(s) ago", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($timeModifiedAgo/60/60, 1));
+										else
+											printf(__("%s day(s) ago", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($timeModifiedAgo/60/60/24, 1));
+										?>
+									</time>
+								<?php endif; ?>
+							</td>
+							<td>
+								<?php if(!$cached['expires']): ?>
+									<i>Unknown</i>
+								<?php else: ?>
+									<time datetime="<?php echo gmdate('c', (int)$cached['expires']) ?>"
+										  title="<?php echo esc_attr(sprintf(__('At %s', OPTIMIZESCRIPTS_TEXT_DOMAIN), date('c', (int)$cached['expires']))) ?>">
+										<?php
+										$lifeRemaining = (int)$cached['expires'] - time();
+										if($lifeRemaining <= 0)
+											_e("expired", OPTIMIZESCRIPTS_TEXT_DOMAIN);
+										else if($lifeRemaining < 60)
+											printf(__("%d second(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), $lifeRemaining);
+										else if($lifeRemaining < 60*60)
+											printf(__("%s minute(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60, 1));
+										else if($lifeRemaining < 60*60*24)
+											printf(__("%s hour(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60, 1));
+										else
+											printf(__("%s day(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60/24, 1));
+										?>
+									</time>
+								<?php endif; ?>
+								<abbr class='requestCount' title="<?php
+										echo esc_attr(str_replace(
+											array('%request_count'),
+											array($cached['request_count']),
+											__("Requested %request_count time(s) since initial creation.", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
+										//if($cached['last_build_reason']){
+										//	echo ' ' . esc_attr(sprintf(__("Reason for last rebuild: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cached['last_build_reason']));
+										//}
+									?>">
+									<?php echo esc_attr(str_replace(
+										'%request_count',
+										$cached['request_count'],
+										__('(%request_count×)', OPTIMIZESCRIPTS_TEXT_DOMAIN))
+									); ?>
+								</abbr>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				<!--
+            [ctime] => 1258762007
+            [mtime] => 1255044110
+            [expires] => 1574122007
+            [etag] => "3f8-ba61be86"
+            [request_count] => 1
+            [src] => http://resers.com-local/wp-content/themes/resers/shadowbox-2.0/build/adapter/shadowbox-jquery.js?0&ver=1255044110
+            [disabled] => 
+				-->
+				</table>
+				<select name="optimizescripts_settings[cached_action]">
+					<option value=''><?php _e('Bulk actions') ?></option>
+					<option value='enable'><?php _e('Enable', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
+					<option value='disable'><?php _e('Disable', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
+					<option value='delete'><?php _e('Delete (force rebuild)', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
+				</select>
+				<input class='button-secondary action' type="submit" value="<?php esc_attr_e('Apply') ?>" />
 			
 			<?php else: ?>
 				<p><em>
