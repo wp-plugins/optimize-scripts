@@ -15,17 +15,36 @@ abbr.rebuildCount {
 	cursor:help;
 }
 
-#optimized_scripts_table tr.disabled {
+#optimized_scripts_table tr.disabled,
+#cached_scripts_table tr.disabled{
 	background-color:#ffcccc;
 }
-#optimized_scripts_table tr.disabled.alternate {
+#optimized_scripts_table tr.disabled.alternate,
+#cached_scripts_table tr.disabled.alternate{
 	background-color:#ffbbbb;
+}
+
+#current_optimized_scripts {
+	margin-top:1em;
+}
+#registered_script_cache,
+#optimizescripts_advanced_options {
+	margin-top:3em;
 }
 
 #optimized_scripts_table .optimized_disabled_info {
 	margin-top:1em;
 	margin-bottom:1em;
 }
-#optimized_scripts_table .optimized_disabled_info > p {
+#optimized_scripts_table .optimized_disabled_info > p,
+#cached_scripts_table .cached_disabled_info > p {
 	margin:0;
+}
+#optimized_scripts_table tr:target .optimized_disabled_info strong > em,
+#cached_scripts_table tr:target .cached_disabled_info strong > em {
+	color:red;
+}
+
+#cached_scripts_table tr:target {
+	background:#ffffcc !important;
 }

@@ -314,7 +314,7 @@ function optimizescripts_compile($oldHandles){
 				//If the URL associated with this handle has changed, we must do a rebuild
 				// if if it hasn't been cached yet
 				if(empty($settings['cache'][$handle]) || $settings['cache'][$handle]['src'] != $src){
-					optimizescripts_print_debug_log("URL Changed! $src ");
+					optimizescripts_debug_log("$handle src changed", $src);
 					$pendingMustRebuild = true;
 				}
 				//Get the Last-Modified time to compare with the mtime of
@@ -332,7 +332,7 @@ function optimizescripts_compile($oldHandles){
 				//  $isConcatenable is set). The expires is set when the
 				//  resource is requested along with the other pending requests.
 				else {
-					optimizescripts_print_debug_log("pendingMustRebuild = true");
+					optimizescripts_debug_log("pendingMustRebuild = true");
 					$pendingMustRebuild = true;
 				}
 				
@@ -436,8 +436,8 @@ function optimizescripts_compile($oldHandles){
 						$group = isset($wp_scripts->registered[$handle]->extra['group']) ?
 							$wp_scripts->registered[$handle]->extra['group'] : false;
 						
-						if(!$pendingMustRebuild)
-							optimizescripts_print_debug_log("No rebuild needed!");
+						//if(!$pendingMustRebuild)
+						//	optimizescripts_debug_log("No rebuild needed!");
 						wp_register_script(
 							$newHandle,
 							"$baseUrl/$filename",
@@ -571,8 +571,8 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 					
 					if(!isset($settings['cache'][$handle])){
 						$settings['cache'][$handle] = array(
-							'ctime' => time(),
-							'mtime' => time(),
+							'ctime' => 0,
+							'mtime' => 0,
 							'expires' => 0,
 							'etag' => null,
 							'request_count' => 0,
@@ -638,6 +638,11 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 								throw new Exception(sprintf(__("HTTP %d", OPTIMIZESCRIPTS_TEXT_DOMAIN), $result['response']['code'], $handle));
 							}
 							
+							if(!$settings['cache'][$handle]['ctime'])
+								$settings['cache'][$handle]['ctime'] = time();
+							if(!$settings['cache'][$handle]['mtime'])
+								$settings['cache'][$handle]['mtime'] = time();
+							
 							//Save the file to the
 							$cacheScriptFile = ($cacheScriptFile);
 							if(!@file_put_contents($cacheScriptFile, $result['body'])){
@@ -687,8 +692,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							$scriptBuffer[] = $contents;
 						}
 						
-						//TEMP @todo
-						optimizescripts_print_debug_log(
+						optimizescripts_debug_log(
 							$downloadSource,
 							$handleshash,
 							$handle,
@@ -779,13 +783,13 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 						
 						$optimized = $compiledCode;
 						
-						optimizescripts_print_debug_log(
+						optimizescripts_debug_log(
 							'Google Code Compiled',
 							join(' - ', array_keys($scriptsToConcatenate))
 						);
 					//}
 					//catch(Exception $e){
-					//	optimizescripts_print_debug_log(
+					//	optimizescripts_debug_log(
 					//		'Closure Exception!',
 					//		$e->getMessage(),
 					//		strlen($optimized),
@@ -809,14 +813,10 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 				$settings['optimized'][$handleshash]['disabled'] = true;
 				$settings['optimized'][$handleshash]['disabled_reason'] = $e->getMessage();
 				
-				optimizescripts_print_debug_log(
-					"Exception!",
-					$handleshash,
-					$handle,
-					//$srcUrl,
+				optimizescripts_debug_log(
+					"Exception for $handleshash",
 					$e->getMessage()
 				);
-				//throw $e;
 			}
 		
 		}#end foreach($scriptGroups as $handleshash => $scriptsToConcatenate)
@@ -824,11 +824,9 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 		
 	}
 	catch(Exception $e){
-		optimizescripts_print_debug_log(
-			join('   ', array(
-				"Exception!",
-				$e->getMessage()
-			))
+		optimizescripts_debug_log(
+			"Exception!",
+			$e->getMessage()
 		);
 		
 		$settings['disabled'] = true;
@@ -849,7 +847,7 @@ add_action('optimizescripts_rebuild_scripts', 'optimizescripts_rebuild_scripts')
 /**
  * Print debug log if WP_DEBUG
  */
-function optimizescripts_print_debug_log($msg){
+function optimizescripts_debug_log($msg){
 	if(!defined('WP_DEBUG') || !WP_DEBUG)
 		return;
 	$settings = get_option('optimizescripts_settings');

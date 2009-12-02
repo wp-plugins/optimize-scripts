@@ -8,10 +8,10 @@
  */
 function optimizescripts_action_admin_menu() {
 	$plugin_page = add_options_page(
-		__('Optimize Scripts Options', OPTIMIZESCRIPTS_TEXT_DOMAIN),
+		__('Optimize Scripts Settings', OPTIMIZESCRIPTS_TEXT_DOMAIN),
 		__('Optimize Scripts', OPTIMIZESCRIPTS_TEXT_DOMAIN),
 		10, //admin
-		'optimize-scripts-options',
+		'optimize-scripts-settings',
 		'optimizescripts_admin_options'
 	);
 	//add_action('admin_head-' . $plugin_page, 'optimizescripts_option_page_header', 1);
@@ -32,7 +32,7 @@ function optimizescripts_admin_init(){
 		'optimizescripts_settings',
 		'optimizescripts_validate_options'
 	);
-	if($plugin_page == 'optimize-scripts-options'){
+	if($plugin_page == 'optimize-scripts-settings'){
 		
 		$plugindir = plugin_dir_path(__FILE__);
 		$pluginurl = plugin_dir_url(__FILE__);
@@ -100,9 +100,44 @@ function optimizescripts_validate_options($input){
 				}
 				break;
 		}
-		
-		
-		//
+	}
+	
+	//Bulk actions on optimized scripts
+	if(!empty($input['cached_handle'])){
+		switch(@$input['cached_action']){
+			
+			//Delete an optimized script, both from DB and from file system
+			case 'delete':
+				foreach((array)$input['cached_handle'] as $handle){
+					if(isset($settings['cache'][$handle])){
+						@unlink("$baseDir/cache/$handle.js");
+						unset($settings['cache'][$handle]);
+					}
+				}
+				break;
+			
+			//Disable an optimized script
+			case 'disable':
+				foreach((array)$input['cached_handle'] as $handle){
+					if(isset($settings['cache'][$handle])){
+						$settings['cache'][$handle]['disabled'] = true;
+						$settings['cache'][$handle]['disabled_reason'] = __("User disabled", OPTIMIZESCRIPTS_TEXT_DOMAIN);
+						//$settings['optimized'][$hashhandle]['disabled_until'] = 0;
+					}
+				}
+				break;
+			
+			//Enable an optimized script
+			case 'enable':
+				foreach((array)$input['cached_handle'] as $handle){
+					if(isset($settings['cache'][$handle])){
+						$settings['cache'][$handle]['disabled'] = false;
+						$settings['cache'][$handle]['disabled_reason'] = '';
+						//$settings['cached'][$handle]['disabled_until'] = 0;
+					}
+				}
+				break;
+		}
 
 	}
 	
@@ -129,14 +164,14 @@ function optimizescripts_admin_options() {
 	$baseUrl = trailingslashit(WP_CONTENT_URL) . $dirname;
 	$baseDir = trailingslashit(WP_CONTENT_DIR) . $dirname;
 	
-	//page=optimize-scripts-options
+	//page=optimize-scripts-settings
 	
 	//$settings['disabled'] = true;
 	//$settings['disabled_until'] = time()+rand()*10000;
 	//$settings['disabled_reason'] = "You are cool!";
 	?>
 	<div class="wrap">
-		<h2><?php _e(__('Optimize Scripts Options', OPTIMIZESCRIPTS_TEXT_DOMAIN)) ?></h2>
+		<h2><?php _e(__('Optimize Scripts Settings', OPTIMIZESCRIPTS_TEXT_DOMAIN)) ?></h2>
 		<form method="post" action="options.php">
 			<?php settings_fields( 'optimizescripts_settings' ); ?>
 			<input type="hidden" name="action" value="update" />
@@ -174,7 +209,7 @@ ECTEXT
 				</p>				
 			</div>
 			
-			<h3><?php _e('Current Optimized Scripts', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></h3>
+			<h3 id="current_optimized_scripts"><?php _e('Current Optimized Scripts', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></h3>
 			<?php if(!empty($settings['optimized'])): ?>
 			<table id="optimized_scripts_table" class="widefat page " cellspacing="0">
 				<thead>
@@ -261,13 +296,17 @@ ECTEXT
 							</ol>
 						</td>
 						<td>
-							<time datetime="<?php echo gmdate('c', $optimized['ctime']) ?>"
-								  title="<?php echo esc_attr(date('c', $optimized['ctime'])) ?>">
-								<?php echo date(get_option('date_format'), $optimized['ctime']) ?>
-							</time>
+							<?php if(!$optimized['mtime']): ?>
+								<em>Unknown</em>
+							<?php else: ?>
+								<time datetime="<?php echo gmdate('c', $optimized['ctime']) ?>"
+									  title="<?php echo esc_attr(date('c', $optimized['ctime'])) ?>">
+									<?php echo date(get_option('date_format'), $optimized['ctime']) ?>
+								</time>
+							<?php endif; ?>
 						</td>
 						<td>
-							<?php if(!$optimized['mtime']): ?>
+							<?php if(!$optimized['ctime']): ?>
 								<em>Unknown</em>
 							<?php else: ?>
 								<time datetime="<?php echo gmdate('c', $optimized['mtime']) ?>" title="<?php echo date('c', $optimized['mtime']) ?>">
@@ -333,26 +372,6 @@ ECTEXT
 					</tr>
 				<?php endforeach; ?>
 				</tbody>
-			<!--
-			[ctime] => 1258155257
-			[mtime] => 1258160250
-			[build_count] => 64
-			[last_build_reason] => 
-			[disabled_until] => 0
-			[disabled] => 
-			[manifest_handles] => Array
-			(
-			[0] => shadowbox-jquery
-			[1] => shadowbox
-			[2] => shadowbox-en
-			[3] => shadowbox-skin
-			[4] => shadowbox-html-player
-			[5] => jquery-scrollTo
-			[6] => resers_common
-			)
-			
-			[disabled_reason] => 
-			-->
 			</table>
 			<select name="optimizescripts_settings[optimized_action]">
 				<option value=''><?php _e('Bulk actions') ?></option>
@@ -361,7 +380,6 @@ ECTEXT
 				<option value='delete'><?php _e('Delete (force rebuild)', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
 			</select>
 			<input class='button-secondary action' type="submit" value="<?php esc_attr_e('Apply') ?>" />
-			<pre><?php echo esc_attr(print_r($settings['optimized'], true)); ?></pre><!-- debug -->
 			<?php else: ?>
 				<p><em>
 <?php _e(<<<ECTEXT
@@ -374,12 +392,13 @@ ECTEXT
 				</em></p>
 			<?php endif; ?>
 			
+			<!--<pre><?php //echo esc_attr(print_r($settings['optimized'], true)); ?></pre>-->
 			
 			
 			
 			
 			
-			<h3><?php _e('Registered Script Cache', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></h3>
+			<h3 id="registered_script_cache"><?php _e('Registered Script Cache', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></h3>
 			<?php if(!empty($settings['cache'])): ?>
 				<table id="cached_scripts_table" class="widefat page " cellspacing="0">
 					<thead>
@@ -395,7 +414,7 @@ ECTEXT
 					<?php
 					$alt = false;
 					foreach($settings['cache'] as $handle => $cached): ?>
-						<tr class="<?php if($alt) echo 'alternate '; $alt=!$alt; if($cached['disabled']) echo ' disabled'; ?>">
+						<tr id="optimizescripts-cache-<?php echo $handle; ?>" class="<?php if($alt) echo 'alternate '; $alt=!$alt; if($cached['disabled']) echo ' disabled'; ?>">
 							<th class='check-column'><input type="checkbox" scope="row" name="optimizescripts_settings[cached_handle][]" value="<?php echo esc_attr($handle) ?>" /></th>
 							<td>
 								<p><strong><a title="<?php esc_attr_e("View optimized script (opens in new window)") ?>" href="<?php echo esc_attr("$baseUrl/cache/$handle.js") ?>" target="_blank"><?php echo esc_attr($handle); ?></a></strong></p>
@@ -407,11 +426,11 @@ ECTEXT
 								//$cached['disabled_reason'] = "You!";
 								?>
 								<?php if($cached['disabled']): ?>
-									<div class='optimized_disabled_info'>
+									<div class='cached_disabled_info'>
 									<p><strong><em><?php _e('Disabled', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></em></strong></p>
-									<?php if($cached['disabled_reason'] || $cached['disabled_until']): ?>
+									<?php if(!empty($cached['disabled_reason']) || !empty($cached['disabled_until'])): ?>
 										<?php
-										if($cached['disabled_until']): ?>
+										if(!empty($cached['disabled_until'])): ?>
 											<p><?php _e('Duration:', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?>
 											<time datetime="<?php echo gmdate('c', $cached['disabled_until']) ?>"
 												  title="<?php echo esc_attr(sprintf(__('Until %s', OPTIMIZESCRIPTS_TEXT_DOMAIN), date('c', $cached['ctime']))) ?>">
@@ -442,10 +461,14 @@ ECTEXT
 								<?php endif; ?>
 							</td>
 							<td>
-								<time datetime="<?php echo gmdate('c', $cached['ctime']) ?>"
-									  title="<?php echo esc_attr(date('c', $cached['ctime'])) ?>">
-									<?php echo date(get_option('date_format'), $cached['ctime']) ?>
-								</time>
+								<?php if(!$cached['ctime']): ?>
+									<em>Unknown</em>
+								<?php else: ?>
+									<time datetime="<?php echo gmdate('c', $cached['ctime']) ?>"
+										  title="<?php echo esc_attr(date('c', $cached['ctime'])) ?>">
+										<?php echo date(get_option('date_format'), $cached['ctime']) ?>
+									</time>
+								<?php endif; ?>
 							</td>
 							<td>
 								<?php if(!$cached['mtime']): ?>
@@ -486,41 +509,32 @@ ECTEXT
 											printf(__("%s day(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60/24, 1));
 										?>
 									</time>
+									<abbr class='requestCount' title="<?php
+											echo esc_attr(str_replace(
+												array('%request_count'),
+												array($cached['request_count']),
+												__("Requested %request_count time(s) since initial creation.", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
+											//if($cached['last_build_reason']){
+											//	echo ' ' . esc_attr(sprintf(__("Reason for last rebuild: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cached['last_build_reason']));
+											//}
+										?>">
+										<?php echo esc_attr(str_replace(
+											'%request_count',
+											$cached['request_count'],
+											__('(%request_count×)', OPTIMIZESCRIPTS_TEXT_DOMAIN))
+										); ?>
+									</abbr>
 								<?php endif; ?>
-								<abbr class='requestCount' title="<?php
-										echo esc_attr(str_replace(
-											array('%request_count'),
-											array($cached['request_count']),
-											__("Requested %request_count time(s) since initial creation.", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
-										//if($cached['last_build_reason']){
-										//	echo ' ' . esc_attr(sprintf(__("Reason for last rebuild: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cached['last_build_reason']));
-										//}
-									?>">
-									<?php echo esc_attr(str_replace(
-										'%request_count',
-										$cached['request_count'],
-										__('(%request_count×)', OPTIMIZESCRIPTS_TEXT_DOMAIN))
-									); ?>
-								</abbr>
 							</td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
-				<!--
-            [ctime] => 1258762007
-            [mtime] => 1255044110
-            [expires] => 1574122007
-            [etag] => "3f8-ba61be86"
-            [request_count] => 1
-            [src] => http://resers.com-local/wp-content/themes/resers/shadowbox-2.0/build/adapter/shadowbox-jquery.js?0&ver=1255044110
-            [disabled] => 
-				-->
 				</table>
 				<select name="optimizescripts_settings[cached_action]">
 					<option value=''><?php _e('Bulk actions') ?></option>
 					<option value='enable'><?php _e('Enable', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
 					<option value='disable'><?php _e('Disable', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
-					<option value='delete'><?php _e('Delete (force rebuild)', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
+					<option value='delete'><?php _e('Delete', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
 				</select>
 				<input class='button-secondary action' type="submit" value="<?php esc_attr_e('Apply') ?>" />
 			
@@ -536,10 +550,10 @@ ECTEXT
 			<?php endif; ?>
 			
 			
-			<pre><?php echo esc_attr(print_r($settings['cache'], true)); ?></pre>
+			<!--<pre><?php //echo esc_attr(print_r($settings['cache'], true)); ?></pre>-->
 			
 			
-			<h3><?php _e('Advanced Options', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></h3>
+			<h3 id="optimizescripts_advanced_options"><?php _e('Advanced Options', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></h3>
 			<table class="form-table">
 				<tr>
 					<th scope="row"><label for="optimizescripts_compilation_level"><?php _e("Google Closure Compiler Compilation Level", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></label></th>
@@ -620,8 +634,9 @@ ECTEXT
 						that request will schedule an immediate cron job which will
 						be executed in the background to rebuild the scripts
 						and once it finishes then subsequent responses will include
-						optimized scripts. <wrong>Warning!</wrong> Should not be
-						enabled if using a caching plugin like WP Super Cache.
+						optimized scripts. This improves load time as the page doesn't have to wait
+						for the scripts to be optimized. <strong>Warning!</strong>
+						Should not be enabled if using a caching plugin like WP Super Cache.
 ECTEXT
 , OPTIMIZESCRIPTS_TEXT_DOMAIN); ?>
 						</p>
