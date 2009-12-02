@@ -99,6 +99,17 @@ function optimizescripts_validate_options($input){
 					}
 				}
 				break;
+			
+			//Expire an optimized script by expiring all of its contained scripts
+			case 'expire':
+				foreach((array)$input['optimized_handlehash'] as $hashhandle){
+					if(isset($settings['optimized'][$hashhandle]['manifest_handles'])){
+						foreach($settings['optimized'][$hashhandle]['manifest_handles'] as $handle){
+							$settings['cache'][$handle]['expires'] = time()-1;
+						}
+					}
+				}
+				break;
 		}
 	}
 	
@@ -106,7 +117,7 @@ function optimizescripts_validate_options($input){
 	if(!empty($input['cached_handle'])){
 		switch(@$input['cached_action']){
 			
-			//Delete an optimized script, both from DB and from file system
+			//Delete a cached script, both from DB and from file system
 			case 'delete':
 				foreach((array)$input['cached_handle'] as $handle){
 					if(isset($settings['cache'][$handle])){
@@ -116,7 +127,7 @@ function optimizescripts_validate_options($input){
 				}
 				break;
 			
-			//Disable an optimized script
+			//Disable a cached script
 			case 'disable':
 				foreach((array)$input['cached_handle'] as $handle){
 					if(isset($settings['cache'][$handle])){
@@ -127,13 +138,22 @@ function optimizescripts_validate_options($input){
 				}
 				break;
 			
-			//Enable an optimized script
+			//Enable a cached script
 			case 'enable':
 				foreach((array)$input['cached_handle'] as $handle){
 					if(isset($settings['cache'][$handle])){
 						$settings['cache'][$handle]['disabled'] = false;
 						$settings['cache'][$handle]['disabled_reason'] = '';
 						//$settings['cached'][$handle]['disabled_until'] = 0;
+					}
+				}
+				break;
+			
+			//Expire a cached script
+			case 'expire':
+				foreach((array)$input['cached_handle'] as $handle){
+					if(isset($settings['cache'][$handle])){
+						$settings['cache'][$handle]['expires'] = time()-1;
 					}
 				}
 				break;
@@ -349,25 +369,26 @@ ECTEXT
 									$expires = $expires ? min($expires, (int)$settings['cache'][$_handle]['expires']) : (int)$settings['cache'][$_handle]['expires'];
 								}
 							}
-							if(!$expires)
-								$expires = time();
-							?>
-							<time datetime="<?php echo gmdate('c', $expires) ?>"
-								  title="<?php echo esc_attr(sprintf(__('At %s', OPTIMIZESCRIPTS_TEXT_DOMAIN), date('c', $expires))) ?>">
-								<?php
-								$lifeRemaining = $expires - time();
-								if($lifeRemaining <= 0)
-									_e("expired", OPTIMIZESCRIPTS_TEXT_DOMAIN);
-								else if($lifeRemaining < 60)
-									printf(__("%d second(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), $lifeRemaining);
-								else if($lifeRemaining < 60*60)
-									printf(__("%s minute(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60, 1));
-								else if($lifeRemaining < 60*60*24)
-									printf(__("%s hour(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60, 1));
-								else
-									printf(__("%s day(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60/24, 1));
-								?>
-							</time>
+							if(!$expires): ?>
+								<em>Unknown</em>
+							<?php else: ?>
+								<time datetime="<?php echo gmdate('c', $expires) ?>"
+									  title="<?php echo esc_attr(sprintf(__('At %s', OPTIMIZESCRIPTS_TEXT_DOMAIN), date('c', $expires))) ?>">
+									<?php
+									$lifeRemaining = $expires - time();
+									if($lifeRemaining <= 0)
+										_e("expired", OPTIMIZESCRIPTS_TEXT_DOMAIN);
+									else if($lifeRemaining < 60)
+										printf(__("%d second(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), $lifeRemaining);
+									else if($lifeRemaining < 60*60)
+										printf(__("%s minute(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60, 1));
+									else if($lifeRemaining < 60*60*24)
+										printf(__("%s hour(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60, 1));
+									else
+										printf(__("%s day(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60/24, 1));
+									?>
+								</time>
+							<?php endif; ?>
 						</td>
 					</tr>
 				<?php endforeach; ?>
@@ -375,8 +396,9 @@ ECTEXT
 			</table>
 			<select name="optimizescripts_settings[optimized_action]">
 				<option value=''><?php _e('Bulk actions') ?></option>
-				<option value='enable'><?php _e('Enable', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
 				<option value='disable'><?php _e('Disable', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
+				<option value='enable'><?php _e('Enable', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
+				<option value='expire'><?php _e('Expire (revalidate)', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
 				<option value='delete'><?php _e('Delete (force rebuild)', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
 			</select>
 			<input class='button-secondary action' type="submit" value="<?php esc_attr_e('Apply') ?>" />
@@ -532,8 +554,9 @@ ECTEXT
 				</table>
 				<select name="optimizescripts_settings[cached_action]">
 					<option value=''><?php _e('Bulk actions') ?></option>
-					<option value='enable'><?php _e('Enable', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
 					<option value='disable'><?php _e('Disable', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
+					<option value='enable'><?php _e('Enable', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
+					<option value='expire'><?php _e('Expire (revalidate)', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
 					<option value='delete'><?php _e('Delete', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></option>
 				</select>
 				<input class='button-secondary action' type="submit" value="<?php esc_attr_e('Apply') ?>" />
