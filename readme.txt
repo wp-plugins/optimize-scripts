@@ -70,3 +70,8 @@ See Trac ticket [3372](http://core.trac.wordpress.org/ticket/3372 "Consolidated 
 = 2009-11-16: 0.5 (alpha) =
 * Initial preview release
 
+== Screenshots ==
+
+1. Current Optimized Scripts
+2. Registered Script Cache
+3. Advanced Options
