@@ -44,7 +44,9 @@ abbr.rebuildCount {
 #cached_scripts_table tr:target .cached_disabled_info strong > em {
 	color:red;
 }
-
+#optimizescripts_minimum_expires_time {
+	text-align:right;
+}
 #cached_scripts_table tr:target {
 	background:#ffffcc !important;
 }

@@ -3,7 +3,7 @@
 Plugin Name: Optimize Scripts
 Plugin URI: http://wordpress.org/extend/plugins/optimize-scripts/
 Description: Concatenates scripts and then minifies and optimizes them using Google's Closure Compiler (but not if <code>define('SCRIPT_DEBUG', true)</code> or <code>define('CONCATENATE_SCRIPTS', false)</code>). For non-concatenable scripts, removes default WordPress 'ver' query param so that Web-wide cacheability isn't broken for scripts hosted on ajax.googleapis.com, for example. <strong>See <a href="options-general.php?page=optimize-scripts-settings">settings page</a>.</strong>
-Version: 0.5 (development)
+Version: 0.6 (development)
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
 Copyright: 2009, Weston Ruter, Shepherd Interactive <http://shepherd-interactive.com/>. GPL license.
@@ -27,8 +27,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 /*
 @todo: Handle inline scripts?
 @todo: Keep track of the page that the script as built on
-@todo: Show error message properly on admin page when activation fails.
-@todo: Add link to settings page on Plugin Description?
+@todo: Implement disabled_until
 */
 
  //* define('SCRIPT_DEBUG', true); loads the development (non-minified) versions of all scripts and disables compression and concatenation
@@ -62,7 +61,7 @@ function optimizescripts_activate(){
 	 * Settings for Plugin
 	 */
 	add_option('optimizescripts_settings', array(
-		'version' => '0.5',
+		'version' => '0.6',
 		
 		//This option is appended to WP_CONTENT_DIR and WP_CONTENT_URL
 		'dirname' => 'js',
@@ -71,7 +70,7 @@ function optimizescripts_activate(){
 		'disabled' => false,
 		'disabled_until' => 0,
 		'disabled_reason' => '',
-		'minimum_expires_time' => 3600*24*4, //6 days
+		'minimum_expires_time' => 3600*24*4, //4 days
 		
 		//When an error happens during a rebuild, a concatenated script is disabled
 		//  until time + this value.
@@ -119,11 +118,17 @@ function optimizescripts_activate(){
 			throw new Exception(sprintf(__("Directory where cached scripts will be stored is not writable (%s).", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheDir));
 	}
 	catch(Exception $e){
-		$settings['disabled'] = true;
-		$settings['disabled_reason'] = $e->getMessage();
-		update_option('optimizescripts_settings', $settings);
+		//Make sure that this plugin isn't on the list of active plugins
+		deactivate_plugins(array(__FILE__), true); //@todo It doesn't seem that this should be necessary :-(
+		//$active_plugins = get_option('active_plugins');
+		//$plugin = plugin_basename(__FILE__);
+		//update_option('active_plugins', array_diff($active_plugins, array($plugin)));
 		
-		//die("Optimize Scripts: " . $e->getMessage()); //@todo Will this show an error?
+		//$settings['disabled'] = true;
+		//$settings['disabled_reason'] = $e->getMessage();
+		//update_option('optimizescripts_settings', $settings);
+		
+		die($e->getMessage());
 	}
 }
 register_activation_hook(__FILE__, 'optimizescripts_activate');
@@ -163,7 +168,7 @@ function optimizescripts_init(){
 		add_filter('print_scripts_array', 'optimizescripts_compile');
 	}
 }
-add_action('template_redirect', 'optimizescripts_init'); //@todo: template_redirect ?
+add_action('init', 'optimizescripts_init'); //@todo: template_redirect ?
 
 
 
@@ -316,7 +321,7 @@ function optimizescripts_compile($oldHandles){
 				//If the URL associated with this handle has changed, we must do a rebuild
 				// if if it hasn't been cached yet
 				if(empty($settings['cache'][$handle]) || $settings['cache'][$handle]['src'] != $src){
-					optimizescripts_debug_log("$handle src changed", $src);
+					optimizescripts_debug_log("$handle src changed or new", $src);
 					$pendingMustRebuild = true;
 				}
 				//Get the Last-Modified time to compare with the mtime of
@@ -640,7 +645,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							}
 							//If not successful
 							else if($result['response']['code'] != 200) {
-								throw new Exception(sprintf(__("HTTP %d", OPTIMIZESCRIPTS_TEXT_DOMAIN), $result['response']['code'], $handle));
+								throw new Exception(sprintf(__("HTTP %d for %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $result['response']['code'], $handle));
 							}
 							
 							if(!$settings['cache'][$handle]['ctime'])
@@ -648,7 +653,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							if(!$settings['cache'][$handle]['mtime'])
 								$settings['cache'][$handle]['mtime'] = time();
 							
-							$settings['cache'][$handle]['response_headers'] = $result['headers'];
+							//$settings['cache'][$handle]['response_headers'] = $result['headers'];
 							
 							//Save the file to the
 							$cacheScriptFile = ($cacheScriptFile);
@@ -683,8 +688,8 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							if($expires-time() < $settings['minimum_expires_time']){
 								throw new Exception(str_replace(
 									array('%url', '%handle', '%minimum_expires_time'),
-									array($srcUrl, $handle, $settings['minimum_expires_time']),
-									__("The script %handle (%url) does not have a minimum expires time (%minimum_expires_time seconds)", OPTIMIZESCRIPTS_TEXT_DOMAIN)
+									array($srcUrl, $handle, $settings['minimum_expires_time']/60/60/24),
+									__("The script %handle (%url) does not have a minimum expires time (%minimum_expires_time days)", OPTIMIZESCRIPTS_TEXT_DOMAIN)
 								));
 							}
 						}
@@ -732,7 +737,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 				}
 				
 				//Concatenate all of the scripts together
-				$optimized .= join("\r\n", $scriptBuffer);
+				$optimized = join("\r\n", $scriptBuffer);
 				
 				//Now compile the scripts using Google Closure Compiler
 				if(!empty($settings['compilation_level'])){

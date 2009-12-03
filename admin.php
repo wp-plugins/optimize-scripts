@@ -63,7 +63,7 @@ function optimizescripts_validate_options($input){
 	//TODO: If this is different, should we delete all existing?
 	$settings['compilation_level'] = $input['compilation_level'];
 	
-	$settings['minimum_expires_time'] = intval($input['minimum_expires_time']);
+	$settings['minimum_expires_time'] = (int)(floatval($input['minimum_expires_time']) * 60*60*24);
 	$settings['use_cron'] = !empty($input['use_cron']);
 	
 	//Bulk actions on optimized scripts
@@ -612,7 +612,7 @@ ECTEXT
 				</tr>
 				<th scope="row"><label for="optimizescripts_minimum_expires_time"><?php _e("Minimum Expires Time", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></label></th>
 				<td>
-					<input type="number" id="optimizescripts_minimum_expires_time" name="optimizescripts_settings[minimum_expires_time]" min="0" step="1" value="<?php echo esc_attr(@$settings['minimum_expires_time']) ?>" /><?php esc_attr_e(" seconds (345600 is six days)", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>
+					<input type="number" id="optimizescripts_minimum_expires_time" name="optimizescripts_settings[minimum_expires_time]" min="0" class="small-text" value="<?php echo esc_attr(@$settings['minimum_expires_time']/60/60/24) ?>" /><?php esc_attr_e(" days", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>
 						<!--<br />-->
 						<!--<span>--><p class="description">
 <?php _e(<<<ECTEXT
@@ -648,7 +648,7 @@ ECTEXT
 				<tr>
 					<th><label for="optimizescripts_use_cron"><?php _e('Use Cron for Rebuilding', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></label></th>
 					<td>
-						<input type="checkbox" name="optimizescripts_settings[use_cron]" id="optimizescripts_use_cron" <?php if(@$settings['minimum_expires_time']): ?>checked="checked"<?php endif; ?> />
+						<input type="checkbox" name="optimizescripts_settings[use_cron]" id="optimizescripts_use_cron" <?php if(@$settings['use_cron']): ?>checked="checked"<?php endif; ?> />
 						<p class="description">
 <?php _e(<<<ECTEXT
 						In a production environment (without <code>define('SCRIPT_DEBUG', true)</code>),
