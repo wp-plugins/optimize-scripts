@@ -11,7 +11,7 @@ Concatenates scripts, minifies and optimizes them using Google's Closure Compile
 
 <em>This plugin is developed at
 <a href="http://www.shepherd-interactive.com/" title="Shepherd Interactive specializes in web design and development in Portland, Oregon">Shepherd Interactive</a>
-for the benefit of the community. <b>No support is available. Please post any questions to the <a href="http://wordpress.org/tags/optimize-scripts?forum_id=10">support forum</a>.</b></em>
+for the benefit of the community.</em>
 
 Concatenates scripts and then minifies and optimizes them using Google's Closure
 Compiler (but not if `define('SCRIPT_DEBUG', true)` or `define('CONCATENATE_SCRIPTS', false)`). For non-concatenable
