@@ -2,7 +2,7 @@
 /*
 Plugin Name: Optimize Scripts
 Plugin URI: http://wordpress.org/extend/plugins/optimize-scripts/
-Description: Concatenates scripts and then minifies and optimizes them using Google's Closure Compiler (but not if <code>define('SCRIPT_DEBUG', true)</code> or <code>define('CONCATENATE_SCRIPTS', false)</code>). For non-concatenable scripts, removes default WordPress 'ver' query param so that Web-wide cacheability isn't broken for scripts hosted on ajax.googleapis.com, for example. No admin page yet provided.
+Description: Concatenates scripts and then minifies and optimizes them using Google's Closure Compiler (but not if <code>define('SCRIPT_DEBUG', true)</code> or <code>define('CONCATENATE_SCRIPTS', false)</code>). For non-concatenable scripts, removes default WordPress 'ver' query param so that Web-wide cacheability isn't broken for scripts hosted on ajax.googleapis.com, for example. <strong>See <a href="options-general.php?page=optimize-scripts-settings">settings page</a>.</strong>
 Version: 0.5 (development)
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
@@ -27,6 +27,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 /*
 @todo: Handle inline scripts?
 @todo: Keep track of the page that the script as built on
+@todo: Show error message properly on admin page when activation fails.
+@todo: Add link to settings page on Plugin Description?
 */
 
  //* define('SCRIPT_DEBUG', true); loads the development (non-minified) versions of all scripts and disables compression and concatenation
@@ -121,7 +123,7 @@ function optimizescripts_activate(){
 		$settings['disabled_reason'] = $e->getMessage();
 		update_option('optimizescripts_settings', $settings);
 		
-		die("Optimize Scripts: " . $e->getMessage()); //@todo Will this show an error?
+		//die("Optimize Scripts: " . $e->getMessage()); //@todo Will this show an error?
 	}
 }
 register_activation_hook(__FILE__, 'optimizescripts_activate');
@@ -411,8 +413,9 @@ function optimizescripts_compile($oldHandles){
 						}
 						else {
 							//Rebuild everything immediately
-							//Suppress warnings because: plugin.php: if ( is_array($arg) && 1 == count($arg) && is_object($arg[0]) ) 
-							@do_action('optimizescripts_rebuild_scripts', array($handleshash => $pendingScripts));
+							//Suppress warnings because: plugin.php: if ( is_array($arg) && 1 == count($arg) && is_object($arg[0]) )
+							do_action_ref_array('optimizescripts_rebuild_scripts', array(array($handleshash => $pendingScripts)));
+							$settings = get_option('optimizescripts_settings');
 							
 							//Check to see if the action failed to rebuild and
 							// disabled this concatenated script
@@ -483,6 +486,7 @@ function optimizescripts_compile($oldHandles){
 			if(!$isConcatenable) //|| $pendingMustRebuild
 				$newHandles[] = $handle;
 		}
+		
 		//file_put_contents(ABSPATH . '/~optimizescripts.txt', print_r($settings, true)); //@todo
 		return $newHandles;
 	}
@@ -612,18 +616,19 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							}
 							
 							//Make the request
+							if(substr($srcUrl, 0, 1) == '/'){
+								$srcUrl = "http://" . parse_url(get_option('siteurl'), PHP_URL_HOST) . $srcUrl;
+							}
 							$result = @$useragent->request($srcUrl, array(
 								'headers' => $requestHeaders,
 								//'httpversion' => '1.1'
 							));
-							$result['request_headers'] = $requestHeaders;
 							
 							$downloadSource = 'HTTP';
 							
 							//Check to see if the HTTP request failed
 							if(is_wp_error($result))
 								throw new Exception(join("\n", $result->get_error_messages()));
-							
 							//Not Modified
 							else if($result['response']['code'] == 304){
 								$downloadSource = "HTTP+Cache";
@@ -642,6 +647,8 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 								$settings['cache'][$handle]['ctime'] = time();
 							if(!$settings['cache'][$handle]['mtime'])
 								$settings['cache'][$handle]['mtime'] = time();
+							
+							$settings['cache'][$handle]['response_headers'] = $result['headers'];
 							
 							//Save the file to the
 							$cacheScriptFile = ($cacheScriptFile);

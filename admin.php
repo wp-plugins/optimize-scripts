@@ -1,6 +1,8 @@
 <?php
 /**
  * Optimize Scripts admin interface
+ *
+ * @todo: Clicking all-checkbox checks checkboxes in both tables
  */
 
 /**
@@ -316,7 +318,7 @@ ECTEXT
 							</ol>
 						</td>
 						<td>
-							<?php if(!$optimized['mtime']): ?>
+							<?php if(!$optimized['ctime']): ?>
 								<em>Unknown</em>
 							<?php else: ?>
 								<time datetime="<?php echo gmdate('c', $optimized['ctime']) ?>"
@@ -326,7 +328,7 @@ ECTEXT
 							<?php endif; ?>
 						</td>
 						<td>
-							<?php if(!$optimized['ctime']): ?>
+							<?php if(!$optimized['mtime']): ?>
 								<em>Unknown</em>
 							<?php else: ?>
 								<time datetime="<?php echo gmdate('c', $optimized['mtime']) ?>" title="<?php echo date('c', $optimized['mtime']) ?>">
