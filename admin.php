@@ -393,6 +393,10 @@ ECTEXT
 									); ?>
 								</abbr>
 							<?php endif; ?>
+							
+							<?php if(!empty($optimized['requesting_url'])): ?>
+								<a href="<?php echo esc_attr($optimized['requesting_url']) ?>" title="<?php esc_attr_e("URL of the page that requested this script last") ?>"><?php _e("URL", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></a>
+							<?php endif; ?>
 						</td>
 						<td>
 							<?php
@@ -544,6 +548,10 @@ ECTEXT
 											printf(__("%s day(s) ago", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($timeModifiedAgo/60/60/24, 1));
 										?>
 									</time>
+								<?php endif; ?>
+							
+								<?php if(!empty($cached['requesting_url'])): ?>
+									<a href="<?php echo esc_attr($cached['requesting_url']) ?>" title="<?php esc_attr_e("URL of the page that requested this script last") ?>"><?php _e("URL", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></a>
 								<?php endif; ?>
 							</td>
 							<td>
