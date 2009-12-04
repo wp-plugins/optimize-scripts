@@ -305,10 +305,18 @@ ECTEXT
 				<?php
 				$alt = false;
 				foreach($settings['optimized'] as $handlehash => $optimized): ?>
-					<tr class="<?php if($alt) echo 'alternate '; $alt=!$alt; if($optimized['disabled']) echo ' disabled'; ?>">
-						<th class='check-column'><input type="checkbox" scope="row" name="optimizescripts_settings[optimized_handlehash][]" value="<?php echo esc_attr($handlehash) ?>" /></th>
+					<?php
+					//$optimizedScriptExists = file_exists("$baseDir/$handlehash.js");
+					$isCronBuildingForFirstTime = !empty($optimized['pending_cron_build']) && empty($optimized['ctime']);
+					?>
+					<tr class="<?php if($alt) echo 'alternate '; $alt=!$alt; if(!empty($optimized['disabled'])) echo ' disabled'; ?>">
+						<th class='check-column'><input type="checkbox" <?php if($isCronBuildingForFirstTime): ?>disabled=""<?php endif; ?> scope="row" name="optimizescripts_settings[optimized_handlehash][]" value="<?php echo esc_attr($handlehash) ?>" /></th>
 						<td>
-							<p><strong><a title="<?php esc_attr_e("View optimized script (opens in new window)") ?>" href="<?php echo esc_attr("$baseUrl/$handlehash.js") ?>" target="_blank"><?php echo esc_attr($handlehash); ?></a></strong></p>
+							<?php if(!$isCronBuildingForFirstTime):?>
+								<p><strong><a title="<?php esc_attr_e("View optimized script (opens in new window)") ?>" href="<?php echo esc_attr("$baseUrl/$handlehash.js") ?>" target="_blank"><?php echo esc_attr($handlehash); ?></a></strong></p>
+							<?php else: ?>
+								<p><strong><?php echo esc_attr($handlehash); ?></strong></p>
+							<?php endif; ?>
 							
 							<!-- status + (disabled_until) + (disabled_until) -->
 							<?php
@@ -316,7 +324,7 @@ ECTEXT
 							//$optimized['disabled_until'] = time()-3400;
 							//$optimized['disabled_reason'] = "You!";
 							?>
-							<?php if($optimized['disabled']): ?>
+							<?php if(!empty($optimized['disabled'])): ?>
 								<div class='optimized_disabled_info'>
 								<p><strong><em><?php _e('Disabled', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></em></strong></p>
 								<?php if($optimized['disabled_reason'] || $optimized['disabled_until']): ?>
@@ -347,7 +355,7 @@ ECTEXT
 								<?php endif; ?>
 								</p>
 								</div>
-							<?php else: ?>
+							<?php elseif(!$isCronBuildingForFirstTime): ?>
 								<p><em><?php _e('Enabled', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em></p>
 							<?php endif; ?>
 							
@@ -362,21 +370,29 @@ ECTEXT
 							<?php endif; ?>
 						</td>
 						<td>
-							<ol>
-								<?php foreach($optimized['manifest_handles'] as $_handle): ?>
-									<li>
-										<?php if(!empty($settings['cache'][$_handle])): ?>
-											<a href="#optimizescripts-cache-<?php echo esc_attr($_handle) ?>"><abbr title="<?php echo esc_attr($settings['cache'][$_handle]['src']) ?>"><?php echo esc_attr($_handle) ?></abbr></a>
-										<?php else: ?>
-											<?php echo esc_attr($_handle) ?><abbr title="<?php esc_attr_e("This doesn't appear in the cache (below)", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>">?</abbr>
-										<?php endif; ?>
-									</li>
-								<?php endforeach; ?>
-							</ol>
+							<?php if(!empty($optimized['pending_cron_build'])): ?>
+								<p><em><?php _e("Pending cron build", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em></p>
+							<?php else: ?>
+								<ol>
+									<?php foreach($optimized['manifest_handles'] as $_handle): ?>
+										<li>
+											<?php if(!empty($settings['cache'][$_handle])): ?>
+												<a href="#optimizescripts-cache-<?php echo esc_attr($_handle) ?>"><abbr title="<?php echo esc_attr($settings['cache'][$_handle]['src']) ?>"><?php echo esc_attr($_handle) ?></abbr></a>
+											<?php else: ?>
+												<?php echo esc_attr($_handle) ?><abbr title="<?php esc_attr_e("This doesn't appear in the cache (below)", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>">?</abbr>
+											<?php endif; ?>
+										</li>
+									<?php endforeach; ?>
+								</ol>
+							<?php endif; ?>
 						</td>
 						<td>
-							<?php if(!$optimized['ctime']): ?>
-								<em>Unknown</em>
+							<?php if(empty($optimized['ctime'])): ?>
+								<?php if(!empty($optimized['pending_cron_build'])): ?>
+									<em><?php _e("Pending cron build", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em>
+								<?php else: ?>
+									<em><?php _e("Unknown", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em>
+								<?php endif; ?>
 							<?php else: ?>
 								<time datetime="<?php echo gmdate('c', $optimized['ctime']) ?>"
 									  title="<?php echo esc_attr(date('c', $optimized['ctime'])) ?>">
@@ -385,8 +401,12 @@ ECTEXT
 							<?php endif; ?>
 						</td>
 						<td>
-							<?php if(!$optimized['mtime']): ?>
-								<em>Unknown</em>
+							<?php if(empty($optimized['mtime'])): ?>
+								<?php if(!empty($optimized['pending_cron_build'])): ?>
+									<em><?php _e("Pending cron build", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em>
+								<?php else: ?>
+									<em><?php _e("Unknown", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em>
+								<?php endif; ?>
 							<?php else: ?>
 								<time datetime="<?php echo gmdate('c', $optimized['mtime']) ?>" title="<?php echo date('c', $optimized['mtime']) ?>">
 									<?php //echo gmdate('c', $optimized['mtime'])
@@ -401,57 +421,73 @@ ECTEXT
 										printf(__("%s day(s) ago", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($timeModifiedAgo/60/60/24, 1));
 									?>
 								</time>
-							<?php endif; ?>
 							
-							<?php if(!empty($optimized['requesting_url'])): ?>
-								<?php _e("@", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>
-								<a href="<?php echo esc_attr($optimized['requesting_url']) ?>" target="_blank" title="<?php esc_attr_e("URL of the page that requested this script last") ?>"><?php _e("URL", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></a>
+								<?php if(!empty($optimized['requesting_url'])): ?>
+									<?php _e("@", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>
+									<a href="<?php echo esc_attr($optimized['requesting_url']) ?>" target="_blank" title="<?php esc_attr_e("URL of the page that requested this script last") ?>"><?php _e("URL", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></a>
+								<?php endif; ?>
+								
+								<?php if(!empty($optimized['pending_cron_build'])): ?>
+									<p><em><?php _e("Pending cron rebuild", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em></p>
+								<?php endif; ?>
 							<?php endif; ?>
 						</td>
 						<td>
-							<?php
-							//Get the expires date by iterating over all of he scripts
-							// in the optimized script and getting the min expires
-							$expires = 0;
-							foreach($optimized['manifest_handles'] as $_handle){
-								if(isset($settings['cache'][$_handle])){
-									$expires = $expires ? min($expires, (int)$settings['cache'][$_handle]['expires']) : (int)$settings['cache'][$_handle]['expires'];
+							<?php if(empty($optimized['manifest_handles'])): ?>
+								<?php if(!empty($optimized['pending_cron_build'])): ?>
+									<em><?php _e("Pending cron build", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em>
+								<?php else: ?>
+									<em><?php _e("Unknown", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em>
+								<?php endif; ?>
+							<?php else: 
+								//Get the expires date by iterating over all of he scripts
+								// in the optimized script and getting the min expires
+								$expires = 0;
+								foreach($optimized['manifest_handles'] as $_handle){
+									if(isset($settings['cache'][$_handle])){
+										$expires = $expires ? min($expires, (int)$settings['cache'][$_handle]['expires']) : (int)$settings['cache'][$_handle]['expires'];
+									}
 								}
-							}
-							if(!$expires): ?>
-								<em>Unknown</em>
-							<?php else: ?>
-								<time datetime="<?php echo gmdate('c', $expires) ?>"
-									  title="<?php echo esc_attr(date('c', $expires)) ?>">
-									<?php
-									$lifeRemaining = $expires - time();
-									if($lifeRemaining <= 0)
-										_e("expired", OPTIMIZESCRIPTS_TEXT_DOMAIN);
-									else if($lifeRemaining < 60)
-										printf(__("%d second(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), $lifeRemaining);
-									else if($lifeRemaining < 60*60)
-										printf(__("%s minute(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60, 1));
-									else if($lifeRemaining < 60*60*24)
-										printf(__("%s hour(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60, 1));
-									else
-										printf(__("%s day(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60/24, 1));
-									?>
-								</time>
-								<abbr class='rebuildCount' title="<?php
-										echo esc_attr(str_replace(
-											array('%build_count'),
-											array($optimized['build_count']),
-											__("Rebuilt %build_count time(s) since initial creation", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
-										if($optimized['last_build_reason']){
-											echo ' ' . esc_attr(sprintf(__("Reason for last rebuild: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $optimized['last_build_reason']));
-										}
-									?>">
-									<?php echo esc_attr(str_replace(
-										'%build_count',
-										$optimized['build_count'],
-										__('%build_count×', OPTIMIZESCRIPTS_TEXT_DOMAIN))
-									); ?>
-								</abbr>
+								if(!$expires/* && empty($optimized['pending_cron_build'])*/): ?>
+									<em><?php _e("Unknown", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em>
+								<?php else: ?>
+									<time datetime="<?php echo gmdate('c', $expires) ?>"
+										  title="<?php echo esc_attr(date('c', $expires)) ?>">
+										<?php
+										$lifeRemaining = $expires - time();
+										//if($lifeRemaining <= 0 && !empty($optimized['pending_cron_build']))
+										//	_e("expired &amp; rebuilding", OPTIMIZESCRIPTS_TEXT_DOMAIN);
+										//else if(!empty($optimized['pending_cron_build']))
+										//	_e("rebuilding", OPTIMIZESCRIPTS_TEXT_DOMAIN);
+										//else
+										if($lifeRemaining <= 0)
+											_e("expired", OPTIMIZESCRIPTS_TEXT_DOMAIN);
+										else if($lifeRemaining < 60)
+											printf(__("%d second(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), $lifeRemaining);
+										else if($lifeRemaining < 60*60)
+											printf(__("%s minute(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60, 1));
+										else if($lifeRemaining < 60*60*24)
+											printf(__("%s hour(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60, 1));
+										else
+											printf(__("%s day(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60/24, 1));
+										?>
+									</time>
+									<abbr class='rebuildCount' title="<?php
+											echo esc_attr(str_replace(
+												array('%build_count'),
+												array($optimized['build_count']),
+												__("Rebuilt %build_count time(s) since initial creation", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
+											if($optimized['last_build_reason']){
+												echo ' ' . esc_attr(sprintf(__("Reason for last rebuild: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $optimized['last_build_reason']));
+											}
+										?>">
+										<?php echo esc_attr(str_replace(
+											'%build_count',
+											$optimized['build_count'],
+											__('%build_count×', OPTIMIZESCRIPTS_TEXT_DOMAIN))
+										); ?>
+									</abbr>
+								<?php endif; ?>
 							<?php endif; ?>
 						</td>
 					</tr>
@@ -551,7 +587,7 @@ ECTEXT
 							</td>
 							<td>
 								<?php if(!$cached['ctime']): ?>
-									<em>Unknown</em>
+									<em><?php _e("Unknown", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em>
 								<?php else: ?>
 									<time datetime="<?php echo gmdate('c', $cached['ctime']) ?>"
 										  title="<?php echo esc_attr(date('c', $cached['ctime'])) ?>">
@@ -561,7 +597,7 @@ ECTEXT
 							</td>
 							<td>
 								<?php if(!$cached['mtime']): ?>
-									<em>Unknown</em>
+									<em><?php _e("Unknown", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em>
 								<?php else: ?>
 									<time datetime="<?php echo gmdate('c', $cached['mtime']) ?>" title="<?php echo date('c', $cached['mtime']) ?>">
 										<?php //echo gmdate('c', $cached['mtime'])
@@ -584,7 +620,7 @@ ECTEXT
 							</td>
 							<td>
 								<?php if(!$cached['expires']): ?>
-									<i>Unknown</i>
+									<em><?php _e("Unknown", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></em>
 								<?php else: ?>
 									<time datetime="<?php echo gmdate('c', (int)$cached['expires']) ?>"
 										  title="<?php echo esc_attr(date('c', (int)$cached['expires'])) ?>">

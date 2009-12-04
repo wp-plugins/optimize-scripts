@@ -8,8 +8,8 @@ jQuery('thead :checkbox, tfoot :checkbox').click(function(e) {
 	var $ = jQuery;
 	var $checkboxes = $(this).closest('table').find('tbody .check-column :checkbox');
 	if(this.checked)
-		$checkboxes.attr('checked', 'checked');
+		$checkboxes.filter(':not([disabled])').attr('checked', 'checked');
 	else
-		$checkboxes.removeAttr('checked');
+		$checkboxes.filter(':not([disabled])').removeAttr('checked');
 	e.stopImmediatePropagation();
 });

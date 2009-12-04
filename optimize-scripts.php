@@ -518,13 +518,25 @@ function optimizescripts_schedule_rebuild_cron(){
 	global $optimizescripts_pending_rebuild;
 	if(!empty($optimizescripts_pending_rebuild)){
 		wp_schedule_single_event(
-			time(),
+			time(), //in 60 seconds
 			'optimizescripts_rebuild_scripts',
 			array(
 				$optimizescripts_pending_rebuild,
 				"http://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]"
 			)
 		);
+		
+		//Flag each of these optimized scripts as being pending rebuild
+		$settings = get_option('optimizescripts_settings');
+		foreach($optimizescripts_pending_rebuild as $handleshash => $pendingScripts){
+			if(!isset($settings['optimized'][$handleshash]))
+				$settings['optimized'][$handleshash] = array();
+			$settings['optimized'][$handleshash]['pending_cron_build'] = true;
+			//optimizescripts_debug_log("settings[optimized][$handleshash][pending_cron_build] = true;");
+		}
+		optimizescripts_debug_log("Scheduled cron!");
+		update_option('optimizescripts_settings', $settings);
+		
 		//print "<pre>" . print_r($optimizescripts_pending_rebuild, true) . "</pre>";
 		$optimizescripts_pending_rebuild = array(); //reset
 	}
@@ -553,34 +565,60 @@ function optimizescripts_rebuild_scripts($scriptGroups, $requestingURL = ''){
 		// required (i.e. not cached or expired), and then rebuild the
 		// concatenated script.
 		foreach($scriptGroups as $handleshash => $scriptsToConcatenate){
-			if(!isset($settings['optimized'][$handleshash])){
-				/**
-				 *  - created: When the script was first built.
-				 *  - modified: Last time that this script was rebuilt (filemtime)
-				 *  - build_count: Number of times that this script has been recompiled
-				 *  - manifest_handles: Array of the script handles that this this compiled script contains (c.f. with cache)
-				 *  - last_build_reason: Explanation for why the last rebuild happened,
-				 *                       for example a script expired
-				 *  - status: success|pending|error
-				 *  - disabled_until: When an error happens during a rebuild, this will
-				 *                    be set to time() + rebuild_wait_period
-				 *  - disabled: Force this to be disabled forever.
-				 */
-				$settings['optimized'][$handleshash] = array(
-					'ctime' => time(),
-					'mtime' => 0,
-					'build_count' => 0,
-					'last_build_reason' => '',
-					//'status' => 'pending',
-					'disabled_until' => 0,
-					'disabled' => false,
-					'requesting_url' => ''
-				);
-			}
+			if(!isset($settings['optimized'][$handleshash]))
+				$settings['optimized'][$handleshash] = array();
+			/**
+			 *  - created: When the script was first built.
+			 *  - modified: Last time that this script was rebuilt (filemtime)
+			 *  - build_count: Number of times that this script has been recompiled
+			 *  - manifest_handles: Array of the script handles that this this compiled script contains (c.f. with cache)
+			 *  - last_build_reason: Explanation for why the last rebuild happened,
+			 *                       for example a script expired
+			 *  - status: success|pending|error
+			 *  - disabled_until: When an error happens during a rebuild, this will
+			 *                    be set to time() + rebuild_wait_period
+			 *  - disabled: Force this to be disabled forever.
+			 */
+			//Note: We're doing all of these issets because the array may be already
+			//      created if a rebuild is scheduled via cron (an array consisting of pending_cron_build=true)
+			$_optimized = &$settings['optimized'][$handleshash];
+			if(!isset($_optimized['ctime']))
+			          $_optimized['ctime'] = time();
+			if(!isset($_optimized['mtime']))
+			          $_optimized['mtime'] = 0;
+			if(!isset($_optimized['build_count']))
+			          $_optimized['build_count'] = 0;
+			//if(!isset($_optimized['pending_cron_build']))
+			          //$_optimized['pending_cron_build'] = false;
+			if(!isset($_optimized['last_build_reason']))
+			          $_optimized['last_build_reason'] = '';
+			if(!isset($_optimized['manifest_handles']))
+			          $_optimized['manifest_handles'] = array();
+			if(!isset($_optimized['disabled_until']))
+			          $_optimized['disabled_until'] = 0;
+			if(!isset($_optimized['disabled']))
+			          $_optimized['disabled'] = false;
+			if(!isset($_optimized['requesting_url']))
+			          $_optimized['requesting_url'] = '';
+			
+			//If this is not set or true, we set it to false because now we're in cron
+			$_optimized['pending_cron_build'] = false;
+			
+			//$settings['optimized'][$handleshash] = array(
+			//	//'ctime' => time(),
+			//	//'mtime' => 0,
+			//	//'build_count' => 0,
+			//	//'pending_cron_build' => false,
+			//	//'last_build_reason' => '',
+			//	//'status' => 'pending',
+			//	//'disabled_until' => 0,
+			//	//'disabled' => false,
+			//	//'requesting_url' => ''
+			//);
 			
 			try {
 				$scriptBuffer = array();
-				$mustRecompileOptimized = false;
+				$mustRecompileOptimized = !file_exists("$baseDir/$handleshash.js");
 				
 				//Iterate over each of the script
 				foreach($scriptsToConcatenate as $handle => $srcUrl){

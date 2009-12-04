@@ -10,6 +10,10 @@
 	background-color:#ffcccc;
 	border:solid 1px red;
 }
+#optimizescripts_disabled_field p.submit {
+	padding-top:0;
+	margin-top:1em;
+}
 
 abbr.rebuildCount {
 	cursor:help;
