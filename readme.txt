@@ -17,7 +17,7 @@ Concatenates scripts and then minifies and optimizes them using Google's Closure
 Compiler (but not if `define('SCRIPT_DEBUG', true)` or `define('CONCATENATE_SCRIPTS', false)`). For non-concatenable
 scripts, removes default WordPress '`ver`' query param so that Web-wide
 cacheability isn't broken for scripts hosted on ajax.googleapis.com, for
-example. No admin page yet provided.
+example.
 
  1. Concatenates enqueued scripts together.
  1. Respects head and footer groups.
@@ -69,6 +69,9 @@ See Trac ticket [3372](http://core.trac.wordpress.org/ticket/3372 "Consolidated 
 
 = 2009-11-16: 0.5 (alpha) =
 * Initial preview release
+
+= 2009-11-16: 0.6 (under development) =
+* Admin page to manage optimized scripts and script cache
 
 == Screenshots ==
 

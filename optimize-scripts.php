@@ -26,7 +26,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 /*
 @todo: Handle inline scripts?
-@todo: Keep track of the page that the script as built on
 @todo: Implement disabled_until
 */
 
@@ -419,7 +418,10 @@ function optimizescripts_compile($oldHandles){
 						else {
 							//Rebuild everything immediately
 							//Suppress warnings because: plugin.php: if ( is_array($arg) && 1 == count($arg) && is_object($arg[0]) )
-							do_action_ref_array('optimizescripts_rebuild_scripts', array(array($handleshash => $pendingScripts)));
+							do_action_ref_array('optimizescripts_rebuild_scripts', array(
+								array($handleshash => $pendingScripts),
+								"http://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]"
+							));
 							$settings = get_option('optimizescripts_settings');
 							
 							//Check to see if the action failed to rebuild and
@@ -515,7 +517,14 @@ function optimizescripts_compile($oldHandles){
 function optimizescripts_schedule_rebuild_cron(){
 	global $optimizescripts_pending_rebuild;
 	if(!empty($optimizescripts_pending_rebuild)){
-		wp_schedule_single_event(time(), 'optimizescripts_rebuild_scripts', array($optimizescripts_pending_rebuild));
+		wp_schedule_single_event(
+			time(),
+			'optimizescripts_rebuild_scripts',
+			array(
+				$optimizescripts_pending_rebuild,
+				"http://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]"
+			)
+		);
 		//print "<pre>" . print_r($optimizescripts_pending_rebuild, true) . "</pre>";
 		$optimizescripts_pending_rebuild = array(); //reset
 	}
@@ -527,8 +536,10 @@ function optimizescripts_schedule_rebuild_cron(){
  * the scripts, updating the cache, concatenating the scripts, and compiling
  * them with Google Closure Compiler
  */
-function optimizescripts_rebuild_scripts($scriptGroups){
+function optimizescripts_rebuild_scripts($scriptGroups, $requestingURL = ''){
 	$settings = get_option('optimizescripts_settings');
+	if($requestingURL)
+		$requestingURL = remove_query_arg('optimize-scripts-rebuild-nonce', $requestingURL);
 	
 	try {
 		$dirname = basename(trim($settings['dirname'], '/'));
@@ -562,7 +573,8 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 					'last_build_reason' => '',
 					//'status' => 'pending',
 					'disabled_until' => 0,
-					'disabled' => false
+					'disabled' => false,
+					'requesting_url' => ''
 				);
 			}
 			else {
@@ -570,6 +582,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 			}
 			$settings['optimized'][$handleshash]['build_count']++;
 			$settings['optimized'][$handleshash]['manifest_handles'] = array_keys($scriptsToConcatenate);
+			$settings['optimized'][$handleshash]['requesting_url'] = $requestingURL;
 			
 			try {
 				$scriptBuffer = array();
@@ -587,10 +600,12 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							'request_count' => 0,
 							'src' => $srcUrl,
 							'disabled' => false,
-							'disabled_reason' => ''
+							'disabled_reason' => '',
+							'requesting_url' => ''
 							//'last_request_reason' => ''
 						);
 					}
+					$settings['cache'][$handle]['requesting_url'] = $requestingURL;
 					try {
 						$downloadSource = '?';
 						$cacheScriptFile = "$cacheDir/$handle.js";
@@ -665,13 +680,13 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 							$scriptBuffer[] = $result['body'];
 							
 							//Get the last modified time
-							$mtime = !empty($result['headers']['last-modified']) ?
-								strtotime($result['headers']['last-modified']) :
-								time();
-							$settings['cache'][$handle]['mtime'] = $mtime;
+							//$settings['cache'][$handle]['headers'] = $result['headers']; //TEMP
+							if(!empty($result['headers']['last-modified']))
+								$settings['cache'][$handle]['mtime'] = strtotime($result['headers']['last-modified']);
 							
 							//Get the etag
-							$settings['cache'][$handle]['etag'] = isset($result['headers']['etag']) ? $result['headers']['etag'] : null;
+							if(!empty($result['headers']['etag']))
+								$settings['cache'][$handle]['etag'] = $result['headers']['etag'];
 							
 							//Get the expires time
 							$expires = 0;
@@ -852,7 +867,7 @@ function optimizescripts_rebuild_scripts($scriptGroups){
 	//	file_put_contents(ABSPATH . '/~optimizescripts.txt', print_r($settings, true), FILE_APPEND);
 	
 }
-add_action('optimizescripts_rebuild_scripts', 'optimizescripts_rebuild_scripts');
+add_action('optimizescripts_rebuild_scripts', 'optimizescripts_rebuild_scripts', 10, 2);
 
 
 
@@ -877,4 +892,5 @@ function optimizescripts_debug_log($msg){
 	@file_put_contents("$baseDir/debugLog.txt", "$entry\n", FILE_APPEND);
 }
 
-include(plugin_dir_path(__FILE__) . 'admin.php');
+if(is_admin())
+	include(plugin_dir_path(__FILE__) . 'admin.php');

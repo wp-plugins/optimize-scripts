@@ -39,7 +39,7 @@ function optimizescripts_admin_init(){
 		$plugindir = plugin_dir_path(__FILE__);
 		$pluginurl = plugin_dir_url(__FILE__);
 		wp_enqueue_style('optimizescripts', $pluginurl."admin.css", array(), filemtime($plugindir."admin.css"));
-		//wp_enqueue_script('optimizescripts', $pluginurl."admin.js", array('jquery'), filemtime($plugindir."admin.js"), true);
+		wp_enqueue_script('optimizescripts', $pluginurl."admin.js", array('jquery'), filemtime($plugindir."admin.js"), true);
 	}
 }
 add_action('admin_init', 'optimizescripts_admin_init' );
@@ -160,17 +160,7 @@ function optimizescripts_validate_options($input){
 				}
 				break;
 		}
-
 	}
-	
-	//header('content-type:text/plain');
-	//print_r($input);
-	//print "\n=============\n";
-	//print_r($settings);
-	//exit;
-	//QUESTION: Where do the plugin save actions go now? I suppose
-	//  this is as good a place as any.
-	
 	return $settings;
 }
 
@@ -185,6 +175,49 @@ function optimizescripts_admin_options() {
 	$dirname = basename(trim($settings['dirname'], '/'));
 	$baseUrl = trailingslashit(WP_CONTENT_URL) . $dirname;
 	$baseDir = trailingslashit(WP_CONTENT_DIR) . $dirname;
+	
+	
+	//Now make an HTTP request for each of the optimized scripts' requesting_urls
+	//Check to see if any of the optimized scripts have expired, and if so, make
+	// a request for their associated requesting_urls so that they can be rebuilt
+	$scriptsRebuilt = 0;
+	foreach($settings['optimized'] as $handlehash => $optimized){
+		if(!empty($optimized['requesting_url'])){
+			//Get the expires time
+			$expires = 0;
+			foreach($optimized['manifest_handles'] as $_handle){
+				if(isset($settings['cache'][$_handle])){
+					$expires = $expires ? min($expires, (int)$settings['cache'][$_handle]['expires']) : (int)$settings['cache'][$_handle]['expires'];
+				}
+				//If it was deleted, force a rebuild
+				else {
+					$expires = 0;
+					break;
+				}
+			}
+			
+			//If expired, then make a request for the requesting_url
+			if($expires < time()){
+				$useragent = new WP_Http();
+				$url = add_query_arg(
+					array('optimize-scripts-rebuild-nonce' => time()),
+					$optimized['requesting_url']
+				);
+				$result = $useragent->request($url);
+				//print "<pre>" . esc_attr(print_r($result, true))  . "</pre>";
+				$scriptsRebuilt++;
+			}
+		}
+	}
+	
+	//In case one of the HTTP requests made a change to the settings, to a raw refetch
+	if($scriptsRebuilt){
+		//@todo Something like this should work:
+		//wp_cache_delete('optimizescripts_settings', 'options');
+		//$settings = get_option('optimizescripts_settings');
+		global $wpdb;
+		$settings = maybe_unserialize($wpdb->get_var("SELECT option_value FROM $wpdb->options WHERE option_name = 'optimizescripts_settings'"));
+	}
 	
 	//page=optimize-scripts-settings
 	
