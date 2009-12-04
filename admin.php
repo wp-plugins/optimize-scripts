@@ -377,25 +377,11 @@ ECTEXT
 										printf(__("%s day(s) ago", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($timeModifiedAgo/60/60/24, 1));
 									?>
 								</time>
-								<abbr class='rebuildCount' title="<?php
-										echo esc_attr(str_replace(
-											array('%build_count'),
-											array($optimized['build_count']),
-											__("Rebuilt %build_count time(s) since initial creation.", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
-										if($optimized['last_build_reason']){
-											echo ' ' . esc_attr(sprintf(__("Reason for last rebuild: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $optimized['last_build_reason']));
-										}
-									?>">
-									<?php echo esc_attr(str_replace(
-										'%build_count',
-										$optimized['build_count'],
-										__('(%build_count×)', OPTIMIZESCRIPTS_TEXT_DOMAIN))
-									); ?>
-								</abbr>
 							<?php endif; ?>
 							
 							<?php if(!empty($optimized['requesting_url'])): ?>
-								<a href="<?php echo esc_attr($optimized['requesting_url']) ?>" title="<?php esc_attr_e("URL of the page that requested this script last") ?>"><?php _e("URL", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></a>
+								<?php _e("@", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>
+								<a href="<?php echo esc_attr($optimized['requesting_url']) ?>" target="_blank" title="<?php esc_attr_e("URL of the page that requested this script last") ?>"><?php _e("URL", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></a>
 							<?php endif; ?>
 						</td>
 						<td>
@@ -427,6 +413,21 @@ ECTEXT
 										printf(__("%s day(s)", OPTIMIZESCRIPTS_TEXT_DOMAIN), round($lifeRemaining/60/60/24, 1));
 									?>
 								</time>
+								<abbr class='rebuildCount' title="<?php
+										echo esc_attr(str_replace(
+											array('%build_count'),
+											array($optimized['build_count']),
+											__("Rebuilt %build_count time(s) since initial creation.", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
+										if($optimized['last_build_reason']){
+											echo ' ' . esc_attr(sprintf(__("Reason for last rebuild: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $optimized['last_build_reason']));
+										}
+									?>">
+									<?php echo esc_attr(str_replace(
+										'%build_count',
+										$optimized['build_count'],
+										__('@ %build_count×', OPTIMIZESCRIPTS_TEXT_DOMAIN))
+									); ?>
+								</abbr>
 							<?php endif; ?>
 						</td>
 					</tr>
@@ -551,7 +552,7 @@ ECTEXT
 								<?php endif; ?>
 							
 								<?php if(!empty($cached['requesting_url'])): ?>
-									<a href="<?php echo esc_attr($cached['requesting_url']) ?>" title="<?php esc_attr_e("URL of the page that requested this script last") ?>"><?php _e("URL", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></a>
+									@ <a href="<?php echo esc_attr($cached['requesting_url']) ?>" target="_blank" title="<?php esc_attr_e("URL of the page that requested this script last") ?>"><?php _e("URL", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></a>
 								<?php endif; ?>
 							</td>
 							<td>
@@ -586,7 +587,7 @@ ECTEXT
 										<?php echo esc_attr(str_replace(
 											'%request_count',
 											$cached['request_count'],
-											__('(%request_count×)', OPTIMIZESCRIPTS_TEXT_DOMAIN))
+											__('@ %request_count×', OPTIMIZESCRIPTS_TEXT_DOMAIN))
 										); ?>
 									</abbr>
 								<?php endif; ?>
