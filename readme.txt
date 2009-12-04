@@ -5,7 +5,7 @@ Tested up to: 2.8.6
 Requires at least: 2.8
 Stable tag: trunk
 
-Concatenates scripts, minifies and optimizes them using Google's Closure Compiler. For other scripts (on CDNs), removes default 'ver' query param.
+Concatenates, minifies and optimizes scripts using Google's Closure Compiler. For other scripts (on CDNs), removes default 'ver' query param.
 
 == Description ==
 
