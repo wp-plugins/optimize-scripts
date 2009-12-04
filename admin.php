@@ -725,7 +725,7 @@ ECTEXT
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="optimizescripts_fetch_timeout"><?php _e("Script fetch timeout", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></label></th>
+					<th scope="row"><label for="optimizescripts_fetch_timeout"><?php _e("Script Fetch Timeout", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></label></th>
 					<td>
 						<input type="number" id="optimizescripts_fetch_timeout" name="optimizescripts_settings[fetch_timeout]" min="0" step="1" class="small-text" value="<?php echo esc_attr(@$settings['fetch_timeout']) ?>" /><?php esc_attr_e(" seconds", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>
 						<p class="description">
@@ -734,7 +734,7 @@ ECTEXT
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="optimizescripts_build_timeout"><?php _e("Script build timeout", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></label></th>
+					<th scope="row"><label for="optimizescripts_build_timeout"><?php _e("Script Build Timeout", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></label></th>
 					<td>
 						<input type="number" id="optimizescripts_build_timeout" name="optimizescripts_settings[build_timeout]" min="0" step="1" class="small-text" value="<?php echo esc_attr(@$settings['build_timeout']) ?>" /><?php esc_attr_e(" seconds", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>
 						<p class="description">
