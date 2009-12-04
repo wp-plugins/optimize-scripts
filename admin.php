@@ -171,6 +171,12 @@ function optimizescripts_validate_options($input){
 		
 		
 		case 'advanced':
+			if(isset($input['fetch_timeout']))
+				$settings['fetch_timeout'] = (int)$input['fetch_timeout'];
+			
+			if(isset($input['build_timeout']))
+				$settings['build_timeout'] = (int)$input['build_timeout'];
+				
 			if(isset($input['compilation_level']))
 				$settings['compilation_level'] = $input['compilation_level'];
 			
@@ -716,6 +722,24 @@ ECTEXT
 ECTEXT
 , OPTIMIZESCRIPTS_TEXT_DOMAIN); ?>
 						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="optimizescripts_fetch_timeout"><?php _e("Script fetch timeout", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></label></th>
+					<td>
+						<input type="number" id="optimizescripts_fetch_timeout" name="optimizescripts_settings[fetch_timeout]" min="0" step="1" class="small-text" value="<?php echo esc_attr(@$settings['fetch_timeout']) ?>" /><?php esc_attr_e(" seconds", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>
+						<p class="description">
+							<?php _e("Maximum amount of time permitted to fetch a script for optimization (HTTP GET).", OPTIMIZESCRIPTS_TEXT_DOMAIN); ?>
+						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="optimizescripts_build_timeout"><?php _e("Script build timeout", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></label></th>
+					<td>
+						<input type="number" id="optimizescripts_build_timeout" name="optimizescripts_settings[build_timeout]" min="0" step="1" class="small-text" value="<?php echo esc_attr(@$settings['build_timeout']) ?>" /><?php esc_attr_e(" seconds", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?>
+						<p class="description">
+							<?php _e("Maximum amount of time permitted to build fetched scripts via Google's Closure Compiler (HTTP POST).", OPTIMIZESCRIPTS_TEXT_DOMAIN); ?>
+						</p
 					</td>
 				</tr>
 				<th scope="row"><label for="optimizescripts_minimum_expires_time"><?php _e("Minimum Expires Time", OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></label></th>

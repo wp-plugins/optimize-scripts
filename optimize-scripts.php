@@ -3,7 +3,7 @@
 Plugin Name: Optimize Scripts
 Plugin URI: http://wordpress.org/extend/plugins/optimize-scripts/
 Description: Concatenates scripts and then minifies and optimizes them using Google's Closure Compiler (but not if <code>define('SCRIPT_DEBUG', true)</code> or <code>define('CONCATENATE_SCRIPTS', false)</code>). For non-concatenable scripts, removes default WordPress 'ver' query param so that Web-wide cacheability isn't broken for scripts hosted on ajax.googleapis.com, for example. <strong>See <a href="options-general.php?page=optimize-scripts-settings">settings page</a>.</strong>
-Version: 0.6 (development)
+Version: 0.6 (alpha)
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
 Copyright: 2009, Weston Ruter, Shepherd Interactive <http://shepherd-interactive.com/>. GPL license.
@@ -80,6 +80,9 @@ function optimizescripts_activate(){
 		
 		//Include a list of the files contained in the the script by means of a header comment
 		'include_manifest' => true,
+		
+		'fetch_timeout' => 5,
+		'build_timeout' => 10,
 		
 		//When not WP_DEBUG, if this is true, then when a script is needing to be
 		// re-concatenated, then the first time the page loads it will be served
@@ -518,7 +521,7 @@ function optimizescripts_schedule_rebuild_cron(){
 	global $optimizescripts_pending_rebuild;
 	if(!empty($optimizescripts_pending_rebuild)){
 		wp_schedule_single_event(
-			time(), //in 60 seconds
+			time(),
 			'optimizescripts_rebuild_scripts',
 			array(
 				$optimizescripts_pending_rebuild,
@@ -674,6 +677,7 @@ function optimizescripts_rebuild_scripts($scriptGroups, $requestingURL = ''){
 							}
 							$result = @$useragent->request($srcUrl, array(
 								'headers' => $requestHeaders,
+								'timeout' => $settings['fetch_timeout']
 								//'httpversion' => '1.1'
 							));
 							
@@ -815,7 +819,8 @@ function optimizescripts_rebuild_scripts($scriptGroups, $requestingURL = ''){
 										'output_info=warnings',
 										'output_info=errors',
 										'output_info=statistics',
-									))
+									)),
+									'timeout' => $settings['build_timeout']
 								)
 							);
 							

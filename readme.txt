@@ -26,6 +26,7 @@ example.
  1. Filename for concatenated/minified script is the md5 of all the handles concatenated together (thus if an additional handle is provided, a new concatenated script is generated).
  1. Provides a filter to limit which scripts get concatenated (i.e. jQuery on ajax.googleapis.com should be left alone); by default, all scripts on local host are concatenated, and remote scripts are left alone.
  1. Removes the default '`ver`' query parameter which WordPress adds to every script src if no version argument is supplied on `wp_enqueue/register_script`: this is important for Web-wide caching of scripts loaded from ajax.googleapis.com, for example. When registering new scripts, pass the filemtime in as the version so that whenever a file changes, the concatenated script will be regenerated. 
+ 1. Script optimization can be delegated to a scheduled cron job so that the server does not periodically respond slowly to visitors.
 
 For example, consider the following code:
 
@@ -60,6 +61,9 @@ But with this plugin enabled, the output would be as follows:
 		<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.3/jquery.min.js"></script>
 		<script src="http://example.com/wp-content/js/9e107d9d372bb6826bd81d3542a419d6.js?ver=7659098223"></script>
 
+An admin page is provided to give fine-grained control over how scripts are optimized;
+see [screenshots](http://wordpress.org/extend/plugins/optimize-scripts/screenshots/).
+
 I'd love to get your [feedback](http://weston.ruter.net/contact/?subject=Optimize+Scripts+WordPress+Plugin) and contributions to make the code
 better so that we can boost WordPress frontend performance.
 
@@ -70,7 +74,7 @@ See Trac ticket [3372](http://core.trac.wordpress.org/ticket/3372 "Consolidated 
 = 2009-11-16: 0.5 (alpha) =
 * Initial preview release
 
-= 2009-11-16: 0.6 (under development) =
+= 2009-11-16: 0.6 (alpha) =
 * Admin page to manage optimized scripts and script cache
 
 == Screenshots ==
