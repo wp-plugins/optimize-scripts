@@ -577,15 +577,10 @@ function optimizescripts_rebuild_scripts($scriptGroups, $requestingURL = ''){
 					'requesting_url' => ''
 				);
 			}
-			else {
-				$settings['optimized'][$handleshash]['mtime'] = time();
-			}
-			$settings['optimized'][$handleshash]['build_count']++;
-			$settings['optimized'][$handleshash]['manifest_handles'] = array_keys($scriptsToConcatenate);
-			$settings['optimized'][$handleshash]['requesting_url'] = $requestingURL;
 			
 			try {
 				$scriptBuffer = array();
+				$mustRecompileOptimized = false;
 				
 				//Iterate over each of the script
 				foreach($scriptsToConcatenate as $handle => $srcUrl){
@@ -662,6 +657,17 @@ function optimizescripts_rebuild_scripts($scriptGroups, $requestingURL = ''){
 							else if($result['response']['code'] != 200) {
 								throw new Exception(sprintf(__("HTTP %d for %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $result['response']['code'], $handle));
 							}
+							//Returned successful with new or modified content
+							else {
+								$mustRecompileOptimized = true;
+							
+								//Save the file to disk
+								$cacheScriptFile = ($cacheScriptFile);
+								if(!@file_put_contents($cacheScriptFile, $result['body'])){
+									$error = error_get_last();
+									throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to cache: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheScriptFile));
+								}
+							}
 							
 							if(!$settings['cache'][$handle]['ctime'])
 								$settings['cache'][$handle]['ctime'] = time();
@@ -669,14 +675,6 @@ function optimizescripts_rebuild_scripts($scriptGroups, $requestingURL = ''){
 								$settings['cache'][$handle]['mtime'] = time();
 							
 							//$settings['cache'][$handle]['response_headers'] = $result['headers'];
-							
-							//Save the file to the
-							$cacheScriptFile = ($cacheScriptFile);
-							if(!@file_put_contents($cacheScriptFile, $result['body'])){
-								$error = error_get_last();
-								throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to cache: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cacheScriptFile));
-							}
-							
 							$scriptBuffer[] = $result['body'];
 							
 							//Get the last modified time
@@ -697,7 +695,6 @@ function optimizescripts_rebuild_scripts($scriptGroups, $requestingURL = ''){
 							//		preg_match('/max-age=(\d+)/', $result['headers']['cache-control'], $maxAgeMatch))
 							//{}
 							$expires = apply_filters('optimizescripts_expires', $expires, $srcUrl, $scriptsToConcatenate);
-							//$expires = time() + 3600;
 							$settings['cache'][$handle]['expires'] = $expires;
 							
 							if($expires-time() < $settings['minimum_expires_time']){
@@ -733,106 +730,113 @@ function optimizescripts_rebuild_scripts($scriptGroups, $requestingURL = ''){
 					}
 				}
 				
-				//Now write out the concatenated script!
-				$output = '';
-				
-				//Prepend the manufest to the concatenated script
-				if(!empty($settings['include_manifest'])){
-					$output .= "/*\n";
-					$output .= __("This file contains the following URLs concatenated together.", OPTIMIZESCRIPTS_TEXT_DOMAIN) . "\n";
-					if(!empty($settings['compilation_level']))
-						$output .= sprintf(__("They were also optimized by Google's Closure Compiler with compilation_level %s.", OPTIMIZESCRIPTS_TEXT_DOMAIN), $settings['compilation_level']) . "\n";
-					//$concatenated .= join("\n", array_values($scriptsToConcatenate));
-					$i = 0;
-					foreach(array_values($scriptsToConcatenate) as $url){
-						$i++;
-						$output .= " $i. $url\n";
+				//Now write out the concatenated script if it has changed from the previous!
+				if($mustRecompileOptimized){
+					optimizescripts_debug_log("mustRecompileOptimized");
+					$settings['optimized'][$handleshash]['mtime'] = time();
+					$settings['optimized'][$handleshash]['build_count']++;
+					$settings['optimized'][$handleshash]['manifest_handles'] = array_keys($scriptsToConcatenate);
+					$settings['optimized'][$handleshash]['requesting_url'] = $requestingURL;
+					$output = '';
+					
+					//Prepend the manufest to the concatenated script
+					if(!empty($settings['include_manifest'])){
+						$output .= "/*\n";
+						$output .= __("This file contains the following URLs concatenated together.", OPTIMIZESCRIPTS_TEXT_DOMAIN) . "\n";
+						if(!empty($settings['compilation_level']))
+							$output .= sprintf(__("They were also optimized by Google's Closure Compiler with compilation_level %s.", OPTIMIZESCRIPTS_TEXT_DOMAIN), $settings['compilation_level']) . "\n";
+						//$concatenated .= join("\n", array_values($scriptsToConcatenate));
+						$i = 0;
+						foreach(array_values($scriptsToConcatenate) as $url){
+							$i++;
+							$output .= " $i. $url\n";
+						}
+						$output .= "*/\n";
 					}
-					$output .= "*/\n";
+					
+					//Concatenate all of the scripts together
+					$optimized = join("\r\n", $scriptBuffer);
+					
+					//Now compile the scripts using Google Closure Compiler
+					if(!empty($settings['compilation_level'])){
+						//try {
+							$result = $useragent->post(
+								'http://closure-compiler.appspot.com/compile',
+								array(
+									'headers' => array(
+										"Accept" => "text/javascript",
+										"Content-Type" => "application/x-www-form-urlencoded",
+										"Referer" => "http://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]",
+									),
+									'body' => join('&', array(
+										'js_code=' . urlencode($optimized),
+										'compilation_level=' . $settings['compilation_level'],
+										'output_format=xml', //json_decode has issues with json here :-(
+										'warning_level=VERBOSE',
+										'output_info=compiled_code',
+										'output_info=warnings',
+										'output_info=errors',
+										'output_info=statistics',
+									))
+								)
+							);
+							
+							//Check to see if error happens
+							if(is_wp_error($result))
+								throw new Exception(join("\n", $result->get_error_messages()));
+							if($result['response']['code'] != 200)
+								throw new Exception(sprintf(__("Google Closure Compuler returned HTTP %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $result['response']['code']));
+							
+							//Save the raw compilationResult
+							@file_put_contents("$baseDir/$handleshash.compilationResult.xml", $result['body']);
+							
+							$doc = new DOMDocument();
+							if(!$doc->loadXML($result['body'])){
+								$error = error_get_last();
+								throw new Exception($error ? $error['message'] : __('XML parse error from Google Closure Compiler', OPTIMIZESCRIPTS_TEXT_DOMAIN));
+							}
+							
+							//JS errors
+							if($doc->getElementsByTagName('error')->item(0)){
+								throw new Exception(__("Google Closure Compiler found errors (please see compilation results)", OPTIMIZESCRIPTS_TEXT_DOMAIN));
+							}
+							
+							//Get the compiled code, otherwise show error
+							$compiledCodeEl = $doc->getElementsByTagName('compiledCode')->item(0);
+							if(!$compiledCodeEl)
+								throw new Exception(__('XML validation error from Google Closure Compiler (missing compiledCode element)', OPTIMIZESCRIPTS_TEXT_DOMAIN));
+							
+							//Get the minified code
+							$compiledCode = $compiledCodeEl->textContent;
+							if(!$compiledCode)
+								throw new Exception('No script data');
+							
+							$optimized = $compiledCode;
+							
+							optimizescripts_debug_log(
+								'Google Code Compiled',
+								join(' - ', array_keys($scriptsToConcatenate))
+							);
+						//}
+						//catch(Exception $e){
+						//	optimizescripts_debug_log(
+						//		'Closure Exception!',
+						//		$e->getMessage(),
+						//		strlen($optimized),
+						//		join('&', array_keys($scriptsToConcatenate))
+						//	);
+						//}
+					}
+					
+					$output .= $optimized;
+					
+					//Write out the concatenated+compiled script
+					if(!@file_put_contents("$baseDir/$handleshash.js", $output)){
+						$error = error_get_last();
+						throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to file %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), "$baseDir/$handleshash.js"));
+					}
+					$settings['optimized'][$handleshash]['mtime'] = time();
 				}
-				
-				//Concatenate all of the scripts together
-				$optimized = join("\r\n", $scriptBuffer);
-				
-				//Now compile the scripts using Google Closure Compiler
-				if(!empty($settings['compilation_level'])){
-					//try {
-						$result = $useragent->post(
-							'http://closure-compiler.appspot.com/compile',
-							array(
-								'headers' => array(
-									"Accept" => "text/javascript",
-									"Content-Type" => "application/x-www-form-urlencoded",
-									"Referer" => "http://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]",
-								),
-								'body' => join('&', array(
-									'js_code=' . urlencode($optimized),
-									'compilation_level=' . $settings['compilation_level'],
-									'output_format=xml', //json_decode has issues with json here :-(
-									'warning_level=VERBOSE',
-									'output_info=compiled_code',
-									'output_info=warnings',
-									'output_info=errors',
-									'output_info=statistics',
-								))
-							)
-						);
-						
-						//Check to see if error happens
-						if(is_wp_error($result))
-							throw new Exception(join("\n", $result->get_error_messages()));
-						if($result['response']['code'] != 200)
-							throw new Exception(sprintf(__("Google Closure Compuler returned HTTP %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $result['response']['code']));
-						
-						//Save the raw compilationResult
-						@file_put_contents("$baseDir/$handleshash.compilationResult.xml", $result['body']);
-						
-						$doc = new DOMDocument();
-						if(!$doc->loadXML($result['body'])){
-							$error = error_get_last();
-							throw new Exception($error ? $error['message'] : __('XML parse error from Google Closure Compiler', OPTIMIZESCRIPTS_TEXT_DOMAIN));
-						}
-						
-						//JS errors
-						if($doc->getElementsByTagName('error')->item(0)){
-							throw new Exception(__("Google Closure Compiler found errors (please see compilation results)", OPTIMIZESCRIPTS_TEXT_DOMAIN));
-						}
-						
-						//Get the compiled code, otherwise show error
-						$compiledCodeEl = $doc->getElementsByTagName('compiledCode')->item(0);
-						if(!$compiledCodeEl)
-							throw new Exception(__('XML validation error from Google Closure Compiler (missing compiledCode element)', OPTIMIZESCRIPTS_TEXT_DOMAIN));
-						
-						//Get the minified code
-						$compiledCode = $compiledCodeEl->textContent;
-						if(!$compiledCode)
-							throw new Exception('No script data');
-						
-						$optimized = $compiledCode;
-						
-						optimizescripts_debug_log(
-							'Google Code Compiled',
-							join(' - ', array_keys($scriptsToConcatenate))
-						);
-					//}
-					//catch(Exception $e){
-					//	optimizescripts_debug_log(
-					//		'Closure Exception!',
-					//		$e->getMessage(),
-					//		strlen($optimized),
-					//		join('&', array_keys($scriptsToConcatenate))
-					//	);
-					//}
-				}
-				
-				$output .= $optimized;
-				
-				//Write out the concatenated+compiled script
-				if(!@file_put_contents("$baseDir/$handleshash.js", $output)){
-					$error = error_get_last();
-					throw new Exception($error ? $error['message'] : sprintf(__("Unable to write to file %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), "$baseDir/$handleshash.js"));
-				}
-				$settings['optimized'][$handleshash]['mtime'] = time();
 			}
 			//If an exception is thrown, then we should update the settings to
 			//  wait for this set of scripts to be re-fetched

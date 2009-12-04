@@ -50,3 +50,8 @@ abbr.rebuildCount {
 #cached_scripts_table tr:target {
 	background:#ffffcc !important;
 }
+
+#cached_scripts_table .requestCount,
+#optimized_scripts_table .rebuildCount {
+	font-weight:bold;
+}

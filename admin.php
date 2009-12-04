@@ -50,117 +50,137 @@ add_action('admin_init', 'optimizescripts_admin_init' );
  */
 function optimizescripts_validate_options($input){
 	$settings = get_option('optimizescripts_settings');
+	if(!isset($input['section']))
+		return $settings;
+	
 	$dirname = basename(trim($settings['dirname'], '/'));
 	$baseUrl = trailingslashit(WP_CONTENT_URL) . $dirname;
 	$baseDir = trailingslashit(WP_CONTENT_DIR) . $dirname;
 	
-	$settings['disabled'] = !empty($input['disabled']);
-	if(!$settings['disabled']){
-		$settings['disabled_reason'] = '';
-		$settings['disabled_until'] = null;
-	}
-	
-	//TODO: If this is different, should we delete all existing?
-	$settings['compilation_level'] = $input['compilation_level'];
-	
-	$settings['minimum_expires_time'] = (int)(floatval($input['minimum_expires_time']) * 60*60*24);
-	$settings['use_cron'] = !empty($input['use_cron']);
-	
-	//Bulk actions on optimized scripts
-	if(!empty($input['optimized_handlehash'])){
-		switch(@$input['optimized_action']){
-			
-			//Delete an optimized script, both from DB and from file system
-			case 'delete':
-				foreach((array)$input['optimized_handlehash'] as $hashhandle){
-					if(isset($settings['optimized'][$hashhandle])){
-						@unlink("$baseDir/$hashhandle.js");
-						unset($settings['optimized'][$hashhandle]);
-					}
-				}
-				break;
-			
-			//Disable an optimized script
-			case 'disable':
-				foreach((array)$input['optimized_handlehash'] as $hashhandle){
-					if(isset($settings['optimized'][$hashhandle])){
-						$settings['optimized'][$hashhandle]['disabled'] = true;
-						$settings['optimized'][$hashhandle]['disabled_reason'] = __("User disabled", OPTIMIZESCRIPTS_TEXT_DOMAIN);
-						//$settings['optimized'][$hashhandle]['disabled_until'] = 0;
-					}
-				}
-				break;
-			
-			//Enable an optimized script
-			case 'enable':
-				foreach((array)$input['optimized_handlehash'] as $hashhandle){
-					if(isset($settings['optimized'][$hashhandle])){
-						$settings['optimized'][$hashhandle]['disabled'] = false;
-						$settings['optimized'][$hashhandle]['disabled_reason'] = '';
-						$settings['optimized'][$hashhandle]['disabled_until'] = 0;
-					}
-				}
-				break;
-			
-			//Expire an optimized script by expiring all of its contained scripts
-			case 'expire':
-				foreach((array)$input['optimized_handlehash'] as $hashhandle){
-					if(isset($settings['optimized'][$hashhandle]['manifest_handles'])){
-						foreach($settings['optimized'][$hashhandle]['manifest_handles'] as $handle){
-							$settings['cache'][$handle]['expires'] = time()-1;
+	switch($input['section']){
+		
+		case 'disabled':
+			$settings['disabled'] = !empty($input['disabled']);
+			if(!$settings['disabled']){
+				$settings['disabled_reason'] = '';
+				$settings['disabled_until'] = null;
+			}
+			break;
+		
+		
+		case 'optimized':
+			//Bulk actions on optimized scripts
+			if(!empty($input['optimized_handlehash'])){
+				switch(@$input['optimized_action']){
+					
+					//Delete an optimized script, both from DB and from file system
+					case 'delete':
+						foreach((array)$input['optimized_handlehash'] as $hashhandle){
+							if(isset($settings['optimized'][$hashhandle])){
+								@unlink("$baseDir/$hashhandle.js");
+								unset($settings['optimized'][$hashhandle]);
+							}
 						}
-					}
+						break;
+					
+					//Disable an optimized script
+					case 'disable':
+						foreach((array)$input['optimized_handlehash'] as $hashhandle){
+							if(isset($settings['optimized'][$hashhandle])){
+								$settings['optimized'][$hashhandle]['disabled'] = true;
+								$settings['optimized'][$hashhandle]['disabled_reason'] = __("User disabled", OPTIMIZESCRIPTS_TEXT_DOMAIN);
+								//$settings['optimized'][$hashhandle]['disabled_until'] = 0;
+							}
+						}
+						break;
+					
+					//Enable an optimized script
+					case 'enable':
+						foreach((array)$input['optimized_handlehash'] as $hashhandle){
+							if(isset($settings['optimized'][$hashhandle])){
+								$settings['optimized'][$hashhandle]['disabled'] = false;
+								$settings['optimized'][$hashhandle]['disabled_reason'] = '';
+								$settings['optimized'][$hashhandle]['disabled_until'] = 0;
+							}
+						}
+						break;
+					
+					//Expire an optimized script by expiring all of its contained scripts
+					case 'expire':
+						foreach((array)$input['optimized_handlehash'] as $hashhandle){
+							if(isset($settings['optimized'][$hashhandle]['manifest_handles'])){
+								foreach($settings['optimized'][$hashhandle]['manifest_handles'] as $handle){
+									$settings['cache'][$handle]['expires'] = time()-1;
+								}
+							}
+						}
+						break;
 				}
-				break;
-		}
+			}
+			break;
+		
+		
+		case 'cached':
+			//Bulk actions on cached scripts
+			if(!empty($input['cached_handle'])){
+				switch(@$input['cached_action']){
+					
+					//Delete a cached script, both from DB and from file system
+					case 'delete':
+						foreach((array)$input['cached_handle'] as $handle){
+							if(isset($settings['cache'][$handle])){
+								@unlink("$baseDir/cache/$handle.js");
+								unset($settings['cache'][$handle]);
+							}
+						}
+						break;
+					
+					//Disable a cached script
+					case 'disable':
+						foreach((array)$input['cached_handle'] as $handle){
+							if(isset($settings['cache'][$handle])){
+								$settings['cache'][$handle]['disabled'] = true;
+								$settings['cache'][$handle]['disabled_reason'] = __("User disabled", OPTIMIZESCRIPTS_TEXT_DOMAIN);
+								//$settings['optimized'][$hashhandle]['disabled_until'] = 0;
+							}
+						}
+						break;
+					
+					//Enable a cached script
+					case 'enable':
+						foreach((array)$input['cached_handle'] as $handle){
+							if(isset($settings['cache'][$handle])){
+								$settings['cache'][$handle]['disabled'] = false;
+								$settings['cache'][$handle]['disabled_reason'] = '';
+								//$settings['cached'][$handle]['disabled_until'] = 0;
+							}
+						}
+						break;
+					
+					//Expire a cached script
+					case 'expire':
+						foreach((array)$input['cached_handle'] as $handle){
+							if(isset($settings['cache'][$handle])){
+								$settings['cache'][$handle]['expires'] = time()-1;
+							}
+						}
+						break;
+				}
+			}
+			break;
+		
+		
+		case 'advanced':
+			if(isset($input['compilation_level']))
+				$settings['compilation_level'] = $input['compilation_level'];
+			
+			if(isset($input['minimum_expires_time']))
+				$settings['minimum_expires_time'] = (int)(floatval($input['minimum_expires_time']) * 60*60*24);
+				
+			$settings['use_cron'] = !empty($input['use_cron']);
+			break;
 	}
-	
-	//Bulk actions on optimized scripts
-	if(!empty($input['cached_handle'])){
-		switch(@$input['cached_action']){
-			
-			//Delete a cached script, both from DB and from file system
-			case 'delete':
-				foreach((array)$input['cached_handle'] as $handle){
-					if(isset($settings['cache'][$handle])){
-						@unlink("$baseDir/cache/$handle.js");
-						unset($settings['cache'][$handle]);
-					}
-				}
-				break;
-			
-			//Disable a cached script
-			case 'disable':
-				foreach((array)$input['cached_handle'] as $handle){
-					if(isset($settings['cache'][$handle])){
-						$settings['cache'][$handle]['disabled'] = true;
-						$settings['cache'][$handle]['disabled_reason'] = __("User disabled", OPTIMIZESCRIPTS_TEXT_DOMAIN);
-						//$settings['optimized'][$hashhandle]['disabled_until'] = 0;
-					}
-				}
-				break;
-			
-			//Enable a cached script
-			case 'enable':
-				foreach((array)$input['cached_handle'] as $handle){
-					if(isset($settings['cache'][$handle])){
-						$settings['cache'][$handle]['disabled'] = false;
-						$settings['cache'][$handle]['disabled_reason'] = '';
-						//$settings['cached'][$handle]['disabled_until'] = 0;
-					}
-				}
-				break;
-			
-			//Expire a cached script
-			case 'expire':
-				foreach((array)$input['cached_handle'] as $handle){
-					if(isset($settings['cache'][$handle])){
-						$settings['cache'][$handle]['expires'] = time()-1;
-					}
-				}
-				break;
-		}
-	}
+
 	return $settings;
 }
 
@@ -227,43 +247,47 @@ function optimizescripts_admin_options() {
 	?>
 	<div class="wrap">
 		<h2><?php _e(__('Optimize Scripts Settings', OPTIMIZESCRIPTS_TEXT_DOMAIN)) ?></h2>
-		<form method="post" action="options.php">
-			<?php settings_fields( 'optimizescripts_settings' ); ?>
-			<input type="hidden" name="action" value="update" />
 <?php _e(<<<ECTEXT
 			<p>Please read the <a href="http://wordpress.org/extend/plugins/optimize-scripts/" target="_blank">plugin documentation</a>.</p>
 ECTEXT
 , OPTIMIZESCRIPTS_TEXT_DOMAIN); ?>
 			
-			<div id="optimizescripts_disabled_field" class="<?php echo @$settings['disabled'] ? 'disabled' : 'enabled'; ?>">
-				<!--<p>-->
-					<input type="checkbox" name="optimizescripts_settings[disabled]" id="optimizescripts_disabled" <?php if(@$settings['disabled']): ?>checked="checked"<?php endif; ?> />
-					<label for="optimizescripts_disabled"><?php _e('Functionality disabled', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></label>
-				<!--</p>-->
-				<?php if(!empty($settings['disabled_until'])): ?>
-				<p>
-					<strong><?php _e('Disabled until:', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></strong>
-					<time datetime="<?php echo gmdate('c', $settings['disabled_until']) ?>"><?php echo date('c', $settings['disabled_until']) ?></time>
-				</p>
-				<?php endif; ?>
-				
-				<?php if(@$settings['disabled_reason']): ?>
-				<p>
-					<strong><?php _e('Reason:', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></strong>
-					<?php echo @$settings['disabled_reason']; ?>
-				</p>
-				
-				<?php endif; ?>
-				<p class="description">
+		<form method="post" action="options.php" id="optimizescripts_disabled_field" class="<?php echo @$settings['disabled'] ? 'disabled' : 'enabled'; ?>">
+			<?php settings_fields( 'optimizescripts_settings' ); ?>
+			<input type="hidden" name="optimizescripts_settings[section]" value="disabled" />
+			<!--<p>-->
+				<input type="checkbox" name="optimizescripts_settings[disabled]" id="optimizescripts_disabled" <?php if(@$settings['disabled']): ?>checked="checked"<?php endif; ?> />
+				<label for="optimizescripts_disabled"><?php _e('Functionality disabled', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></label>
+			<!--</p>-->
+			<?php if(!empty($settings['disabled_until'])): ?>
+			<p>
+				<strong><?php _e('Disabled until:', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></strong>
+				<time datetime="<?php echo gmdate('c', $settings['disabled_until']) ?>"><?php echo date('c', $settings['disabled_until']) ?></time>
+			</p>
+			<?php endif; ?>
+			
+			<?php if(@$settings['disabled_reason']): ?>
+			<p>
+				<strong><?php _e('Reason:', OPTIMIZESCRIPTS_TEXT_DOMAIN) ?></strong>
+				<?php echo @$settings['disabled_reason']; ?>
+			</p>
+			
+			<?php endif; ?>
+			<p class="description">
 <?php _e(<<<ECTEXT
-				You may manually enable or disable this plugin be changing this
-				option. If an exception is raised during the rebuilding process
-				(concatenation/compilation) then disabled option is set. 
+			You may manually enable or disable this plugin be changing this
+			option. If an exception is raised during the rebuilding process
+			(concatenation/compilation) then disabled option is set. 
 ECTEXT
 , OPTIMIZESCRIPTS_TEXT_DOMAIN); ?>
-				</p>				
-			</div>
+			</p>
+			<p class='submit'><input type="submit" value="Update »" /></p>
+		</form>
 			
+
+		<form method="post" action="options.php">
+			<?php settings_fields( 'optimizescripts_settings' ); ?>
+			<input type="hidden" name="optimizescripts_settings[section]" value="optimized" />
 			<h3 id="current_optimized_scripts"><?php _e('Current Optimized Scripts', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></h3>
 			<?php if(!empty($settings['optimized'])): ?>
 			<table id="optimized_scripts_table" class="widefat page " cellspacing="0">
@@ -398,7 +422,7 @@ ECTEXT
 								<em>Unknown</em>
 							<?php else: ?>
 								<time datetime="<?php echo gmdate('c', $expires) ?>"
-									  title="<?php echo esc_attr(sprintf(__('At %s', OPTIMIZESCRIPTS_TEXT_DOMAIN), date('c', $expires))) ?>">
+									  title="<?php echo esc_attr(date('c', $expires)) ?>">
 									<?php
 									$lifeRemaining = $expires - time();
 									if($lifeRemaining <= 0)
@@ -417,7 +441,7 @@ ECTEXT
 										echo esc_attr(str_replace(
 											array('%build_count'),
 											array($optimized['build_count']),
-											__("Rebuilt %build_count time(s) since initial creation.", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
+											__("Rebuilt %build_count time(s) since initial creation", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
 										if($optimized['last_build_reason']){
 											echo ' ' . esc_attr(sprintf(__("Reason for last rebuild: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $optimized['last_build_reason']));
 										}
@@ -425,7 +449,7 @@ ECTEXT
 									<?php echo esc_attr(str_replace(
 										'%build_count',
 										$optimized['build_count'],
-										__('@ %build_count×', OPTIMIZESCRIPTS_TEXT_DOMAIN))
+										__('%build_count×', OPTIMIZESCRIPTS_TEXT_DOMAIN))
 									); ?>
 								</abbr>
 							<?php endif; ?>
@@ -455,10 +479,13 @@ ECTEXT
 			<?php endif; ?>
 			
 			<!--<pre><?php //echo esc_attr(print_r($settings['optimized'], true)); ?></pre>-->
+		</form>
 			
 			
 			
-			
+		<form method="post" action="options.php">
+			<?php settings_fields( 'optimizescripts_settings' ); ?>
+			<input type="hidden" name="optimizescripts_settings[section]" value="cached" />
 			
 			<h3 id="registered_script_cache"><?php _e('Registered Script Cache', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></h3>
 			<?php if(!empty($settings['cache'])): ?>
@@ -560,7 +587,7 @@ ECTEXT
 									<i>Unknown</i>
 								<?php else: ?>
 									<time datetime="<?php echo gmdate('c', (int)$cached['expires']) ?>"
-										  title="<?php echo esc_attr(sprintf(__('At %s', OPTIMIZESCRIPTS_TEXT_DOMAIN), date('c', (int)$cached['expires']))) ?>">
+										  title="<?php echo esc_attr(date('c', (int)$cached['expires'])) ?>">
 										<?php
 										$lifeRemaining = (int)$cached['expires'] - time();
 										if($lifeRemaining <= 0)
@@ -579,7 +606,7 @@ ECTEXT
 											echo esc_attr(str_replace(
 												array('%request_count'),
 												array($cached['request_count']),
-												__("Requested %request_count time(s) since initial creation.", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
+												__("Requested %request_count time(s) since initial creation", OPTIMIZESCRIPTS_TEXT_DOMAIN)));
 											//if($cached['last_build_reason']){
 											//	echo ' ' . esc_attr(sprintf(__("Reason for last rebuild: %s", OPTIMIZESCRIPTS_TEXT_DOMAIN), $cached['last_build_reason']));
 											//}
@@ -587,7 +614,7 @@ ECTEXT
 										<?php echo esc_attr(str_replace(
 											'%request_count',
 											$cached['request_count'],
-											__('@ %request_count×', OPTIMIZESCRIPTS_TEXT_DOMAIN))
+											__('%request_count×', OPTIMIZESCRIPTS_TEXT_DOMAIN))
 										); ?>
 									</abbr>
 								<?php endif; ?>
@@ -615,10 +642,13 @@ ECTEXT
 , OPTIMIZESCRIPTS_TEXT_DOMAIN); ?>
 				</em></p>
 			<?php endif; ?>
-			
+		</form>
 			
 			<!--<pre><?php //echo esc_attr(print_r($settings['cache'], true)); ?></pre>-->
 			
+		<form method="post" action="options.php">
+			<?php settings_fields( 'optimizescripts_settings' ); ?>
+			<input type="hidden" name="optimizescripts_settings[section]" value="advanced" />
 			
 			<h3 id="optimizescripts_advanced_options"><?php _e('Advanced Options', OPTIMIZESCRIPTS_TEXT_DOMAIN); ?></h3>
 			<table class="form-table">
@@ -713,8 +743,9 @@ ECTEXT
 			<p class="submit">
 				<input type="submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
 			</p>
-			<pre><?php echo esc_attr(print_r($settings, true)); ?></pre>
 		</form>
+		
+		<pre><?php echo esc_attr(print_r($settings, true)); ?></pre>
 	</div>
 	<?php
 }
