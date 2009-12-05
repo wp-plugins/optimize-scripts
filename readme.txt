@@ -45,7 +45,13 @@ For example, consider the following code:
 
 		wp_deregister_script('jquery');	//remove locally jQuery in favor of Google's
 		//since no verion provided, no ver query param will be added to script@src
-		wp_enqueue_script('jquery', 'http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js', null, false);
+		wp_enqueue_script(
+		   'jquery',
+		   'http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js',
+		   array(),
+		   null, //since empty, no ver parameter in query string
+		   true //in_footer
+		);
 		wp_enqueue_script(
 		   'myscript1', 
 		   get_template_directory_uri().'/myscript1.js', 
