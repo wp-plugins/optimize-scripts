@@ -16,16 +16,29 @@ for the benefit of the community.</em>
 Concatenates scripts and then minifies and optimizes them using Google's Closure
 Compiler (but not if `define('SCRIPT_DEBUG', true)` or `define('CONCATENATE_SCRIPTS', false)`). For non-concatenable
 scripts, removes default WordPress '`ver`' query param so that Web-wide
-cacheability isn't broken for scripts hosted on ajax.googleapis.com, for
-example.
+cacheability isn't broken for scripts hosted on `ajax.googleapis.com`, for
+example. The following [performance rules](http://developer.yahoo.com/performance/rules.html) are supported or enforced by this plugin:
+
+ 1. [Minimize HTTP Requests](http://developer.yahoo.com/performance/rules.html#num_http),
+    as multiple scripts are concatenated together into one.
+ 1. [Reduce DNS Lookups](http://developer.yahoo.com/performance/rules.html#dns_lookups),
+    since scripts from multiple domains can be concatenated together.
+ 1. [Add an Expires or a Cache-Control Header](http://developer.yahoo.com/performance/rules.html#expires),
+    which is a prerequsite for this plugin to function and can be implemented with
+	server configuration or `optimizescripts_expires` filter.
+ 1. [Use a Content Delivery Network](http://developer.yahoo.com/performance/rules.html#cdn):
+    enqueued scripts without a version provided will not be output with a `ver` query param
+	so that Web-wide cacheability is not broken for static scripts on CDNs (like Google).
+
+This plugin does the following:
 
  1. Concatenates enqueued scripts together.
  1. Respects head and footer groups.
  1. Minifies code using Google's Closure Compiler.
- 1. Caches the concatenated/minified code and rebuilds it only when one of its source scripts expires or changes.
+ 1. Caches the concatenated/minified code and rebuilds it only when one of its source scripts expires or changes. The `optimizescripts_expires` filter is provided which allows the far-future expires time to be forced.
  1. Filename for concatenated/minified script is the md5 of all the handles concatenated together (thus if an additional handle is provided, a new concatenated script is generated).
- 1. Provides a filter to limit which scripts get concatenated (i.e. jQuery on ajax.googleapis.com should be left alone); by default, all scripts on local host are concatenated, and remote scripts are left alone.
- 1. Removes the default '`ver`' query parameter which WordPress adds to every script src if no version argument is supplied on `wp_enqueue/register_script`: this is important for Web-wide caching of scripts loaded from ajax.googleapis.com, for example. When registering new scripts, pass the filemtime in as the version so that whenever a file changes, the concatenated script will be regenerated. 
+ 1. Provides a filter to limit which scripts get concatenated (i.e. jQuery on `ajax.googleapis.com` should be left alone); by default, all scripts on local host are concatenated, and remote scripts are left alone.
+ 1. Removes the default '`ver`' query parameter which WordPress adds to every script src if no version argument is supplied on `wp_enqueue/register_script`: this is important for Web-wide caching of scripts loaded from `ajax.googleapis.com`, for example. When registering new scripts, pass the filemtime in as the version so that whenever a file changes, the concatenated script will be regenerated. 
  1. Script optimization can be delegated to a scheduled cron job so that the server does not periodically respond slowly to visitors.
 
 For example, consider the following code:
@@ -37,7 +50,7 @@ For example, consider the following code:
 		   'myscript1', 
 		   get_template_directory_uri().'/myscript1.js', 
 		   array('jquery'), 
-		   filemtime(TEMPLATEPATH).'/myscript1.js',
+		   filemtime(TEMPLATEPATH.'/myscript1.js'),
 		   true //in_footer
 		);
 		…
@@ -45,7 +58,7 @@ For example, consider the following code:
 		   'myscriptN', 
 		   get_template_directory_uri().'/myscriptN.js', 
 		   array('jquery'), 
-		   filemtime(TEMPLATEPATH).'/myscriptN.js',
+		   filemtime(TEMPLATEPATH.'/myscriptN.js'),
 		   true //in_footer
 		);
 
@@ -60,6 +73,14 @@ But with this plugin enabled, the output would be as follows:
 
 		<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.3/jquery.min.js"></script>
 		<script src="http://example.com/wp-content/js/9e107d9d372bb6826bd81d3542a419d6.js?ver=7659098223"></script>
+
+*Important!* You must configure your server to serve static JavaScript files with a far-future `Expires` header!
+This is a performance [best-practice](http://developer.yahoo.com/performance/rules.html#expires)
+because it reduces the number of HTTP requests that need to be made with a primed cache.
+Providing the `filemtime` as the version for the included scripts is essential to
+ensure that when a script changes, the old cached version is replaced with the new one.
+If you do not have control over the `Expires` header of the scripts you enqueue,
+you may override the default via the `optimizescripts_expires` filter.
 
 An admin page is provided to give fine-grained control over how scripts are optimized;
 see [screenshots](http://wordpress.org/extend/plugins/optimize-scripts/screenshots/).
