@@ -3,7 +3,7 @@
 Plugin Name: Optimize Scripts (Obsolete)
 Plugin URI: http://wordpress.org/extend/plugins/optimize-scripts/
 Description: DO NOT USE THIS PLUGIN. Use the Dependency Minification plugin instead. Concatenates scripts and then minifies and optimizes them using Google's Closure Compiler (but not if <code>define('SCRIPT_DEBUG', true)</code> or <code>define('CONCATENATE_SCRIPTS', false)</code>). For non-concatenable scripts, removes default WordPress 'ver' query param so that Web-wide cacheability isn't broken for scripts hosted on ajax.googleapis.com, for example. <strong>See <a href="options-general.php?page=optimize-scripts-settings">settings page</a>.</strong>
-Version: 0.6 (alpha)
+Version: OBSOLETE
 Author: Weston Ruter
 Author URI: http://weston.ruter.net/
 Copyright: 2009, Weston Ruter, Shepherd Interactive <http://shepherd-interactive.com/>. GPL license.
